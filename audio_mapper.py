@@ -43,6 +43,10 @@ from commands import (
 )
 from history_manager import HistoryManager
 from tooltip import ToolTip
+from models import Marker, AudioVersion, MarkerType, MarkerStatus, create_marker
+from waveform_manager import WaveformManager
+from filmstrip_manager import FilmstripManager
+from file_handler import FileHandler
 
 
 # ============================================================================
@@ -1797,13 +1801,10 @@ class AudioMapperGUI:
         # Selected marker for keyboard nudging
         self.selected_marker_index = None
 
-        # Waveform data
-        self.waveform_data = None
+        # Waveform and Filmstrip managers (initialized after UI creation)
+        self.waveform_manager = None
+        self.filmstrip_manager = None
         self.waveform_canvas_height = 80
-
-        # Film strip data
-        self.filmstrip_frames = []  # List of thumbnail images
-        self.filmstrip_frame_times = []  # Corresponding time positions in ms
         self.filmstrip_canvas_height = 60
         self.filmstrip_thumb_width = 80
         self.filmstrip_thumb_height = 45
@@ -1879,20 +1880,15 @@ class AudioMapperGUI:
         )
         self.filmstrip_canvas.pack(fill=tk.BOTH, expand=True)
 
-        # Placeholder text
-        self.filmstrip_canvas.create_text(
-            600, 30,
-            text="Film strip will appear here",
-            fill="#666",
-            font=("Arial", 10),
-            tags="filmstrip_placeholder"
+        # Initialize filmstrip manager
+        self.filmstrip_manager = FilmstripManager(
+            canvas=self.filmstrip_canvas,
+            canvas_height=self.filmstrip_canvas_height,
+            thumb_width=self.filmstrip_thumb_width,
+            thumb_height=self.filmstrip_thumb_height,
+            on_seek=self._on_filmstrip_seek,
+            on_deselect_marker=self.deselect_marker
         )
-
-        # Bind click event for scrubbing
-        self.filmstrip_canvas.bind("<Button-1>", self.on_filmstrip_click)
-
-        # Bind resize event to redraw filmstrip
-        self.filmstrip_canvas.bind("<Configure>", self.on_filmstrip_resize)
 
     def create_waveform_display(self):
         """Create waveform visualization canvas"""
@@ -1909,20 +1905,23 @@ class AudioMapperGUI:
         )
         self.waveform_canvas.pack(fill=tk.BOTH, expand=True)
 
-        # Placeholder text
-        self.waveform_canvas.create_text(
-            600, 40,
-            text="Audio waveform will appear here",
-            fill="#666",
-            font=("Arial", 10),
-            tags="waveform_placeholder"
+        # Initialize waveform manager
+        self.waveform_manager = WaveformManager(
+            canvas=self.waveform_canvas,
+            canvas_height=self.waveform_canvas_height,
+            on_seek=self._on_waveform_seek,
+            on_deselect_marker=self.deselect_marker
         )
 
-        # Bind click event for scrubbing
-        self.waveform_canvas.bind("<Button-1>", self.on_waveform_click)
+    def _on_waveform_seek(self, time_ms):
+        """Callback when user clicks waveform to seek"""
+        self.seek_to_time(time_ms)
+        self.timeline_slider.set(self.current_time_ms)
 
-        # Bind resize event to redraw waveform
-        self.waveform_canvas.bind("<Configure>", self.on_waveform_resize)
+    def _on_filmstrip_seek(self, time_ms):
+        """Callback when user clicks filmstrip to seek"""
+        self.seek_to_time(time_ms)
+        self.timeline_slider.set(self.current_time_ms)
 
     def create_timeline_controls(self):
         """Create timeline scrubber and controls"""
@@ -2617,11 +2616,13 @@ class AudioMapperGUI:
         self.seek_to_time(0)
 
         # Extract and display film strip
-        self.extract_filmstrip_frames(num_thumbs=15)
-        self.draw_filmstrip()
+        if self.filmstrip_manager:
+            self.filmstrip_manager.extract_frames(self.video_capture, self.duration_ms, self.fps, num_thumbs=15)
+            self.filmstrip_manager.draw()
 
         # Extract and display audio waveform
-        self.extract_and_display_waveform(filepath)
+        if self.waveform_manager:
+            self.waveform_manager.extract_and_display(filepath)
 
         # Prompt for template info
         self.prompt_template_info()
@@ -2810,10 +2811,12 @@ class AudioMapperGUI:
         self.update_timestamp_display()
 
         # Update film strip position indicator
-        self.update_filmstrip_position()
+        if self.filmstrip_manager:
+            self.filmstrip_manager.update_position(self.current_time_ms)
 
         # Update waveform position indicator
-        self.update_waveform_position()
+        if self.waveform_manager:
+            self.waveform_manager.update_position(self.current_time_ms)
 
         # Schedule next update (30 FPS refresh rate)
         self.root.after(33, self.update_timeline)
@@ -2832,157 +2835,24 @@ class AudioMapperGUI:
         self.timestamp_label.config(text=timestamp)
 
     # ========================================================================
-    # FILM STRIP METHODS
+    # FILM STRIP AND WAVEFORM METHODS - Now handled by managers
     # ========================================================================
-
-    def extract_filmstrip_frames(self, num_thumbs=15):
-        """Extract thumbnail frames at regular intervals for film strip"""
-        if not self.video_capture or self.duration_ms == 0:
-            return
-
-        print(f"⏳ Extracting {num_thumbs} thumbnail frames for film strip...")
-
-        # Clear previous frames
-        self.filmstrip_frames = []
-        self.filmstrip_frame_times = []
-
-        # Calculate time intervals
-        interval_ms = self.duration_ms / (num_thumbs - 1) if num_thumbs > 1 else 0
-
-        for i in range(num_thumbs):
-            time_ms = int(i * interval_ms)
-            if time_ms > self.duration_ms:
-                time_ms = self.duration_ms
-
-            # Seek to this time
-            frame_number = int((time_ms / 1000) * self.fps)
-            self.video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-
-            # Read frame
-            ret, frame = self.video_capture.read()
-            if not ret:
-                continue
-
-            # Convert BGR to RGB
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-            # Resize to thumbnail size
-            frame_resized = cv2.resize(
-                frame_rgb,
-                (self.filmstrip_thumb_width, self.filmstrip_thumb_height),
-                interpolation=cv2.INTER_AREA
-            )
-
-            # Convert to PIL Image then PhotoImage
-            pil_image = Image.fromarray(frame_resized)
-            photo_image = ImageTk.PhotoImage(pil_image)
-
-            # Store frame and time
-            self.filmstrip_frames.append(photo_image)
-            self.filmstrip_frame_times.append(time_ms)
-
-        # Reset video to beginning
-        self.video_capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
-
-        print(f"✓ Extracted {len(self.filmstrip_frames)} thumbnail frames")
+    # Filmstrip and waveform display/interaction are now managed by
+    # FilmstripManager and WaveformManager classes. See filmstrip_manager.py
+    # and waveform_manager.py for implementation.
 
     def draw_filmstrip(self):
-        """Draw film strip thumbnails on canvas"""
-        if not self.filmstrip_frames or self.duration_ms == 0:
-            return
-
-        # Clear canvas
-        self.filmstrip_canvas.delete("all")
-
-        # Get canvas width
-        canvas_width = self.filmstrip_canvas.winfo_width()
-        if canvas_width <= 1:
-            canvas_width = 1200  # Default width
-
-        # Draw each thumbnail positioned by its actual time
-        for photo, time_ms in zip(self.filmstrip_frames, self.filmstrip_frame_times):
-            # Calculate x position based on time (proportional to duration)
-            x_pos = int((time_ms / self.duration_ms) * canvas_width)
-            y_pos = self.filmstrip_canvas_height // 2
-
-            # Draw thumbnail
-            self.filmstrip_canvas.create_image(
-                x_pos, y_pos,
-                image=photo,
-                anchor=tk.CENTER,
-                tags="thumbnail"
-            )
-
-            # Draw frame border
-            half_width = self.filmstrip_thumb_width // 2
-            half_height = self.filmstrip_thumb_height // 2
-            self.filmstrip_canvas.create_rectangle(
-                x_pos - half_width, y_pos - half_height,
-                x_pos + half_width, y_pos + half_height,
-                outline="#444",
-                width=1,
-                tags="thumbnail_border"
-            )
+        """Draw film strip thumbnails on canvas - delegates to FilmstripManager"""
+        if self.filmstrip_manager:
+            self.filmstrip_manager.draw()
 
     def update_filmstrip_position(self):
-        """Update position indicator on film strip"""
-        if not self.filmstrip_frames or self.duration_ms == 0:
-            return
-
-        # Remove old position indicator
-        self.filmstrip_canvas.delete("position")
-
-        # Calculate position
-        canvas_width = self.filmstrip_canvas.winfo_width()
-        if canvas_width <= 1:
-            canvas_width = 1200
-
-        x_pos = int((self.current_time_ms / self.duration_ms) * canvas_width)
-
-        # Draw position indicator
-        self.filmstrip_canvas.create_line(
-            x_pos, 0,
-            x_pos, self.filmstrip_canvas_height,
-            fill="#FF6B00",
-            width=2,
-            tags="position"
-        )
-
-    def on_filmstrip_click(self, event):
-        """Handle click on film strip for scrubbing"""
-        if not self.video_loaded or self.duration_ms == 0:
-            return
-
-        # Check if we clicked on a marker
-        items = self.filmstrip_canvas.find_overlapping(event.x - 5, event.y - 5, event.x + 5, event.y + 5)
-        clicked_on_marker = False
-        for item in items:
-            tags = self.filmstrip_canvas.gettags(item)
-            if "marker" in tags:
-                clicked_on_marker = True
-                break
-
-        # If didn't click on a marker, deselect and scrub timeline
-        if not clicked_on_marker:
-            self.deselect_marker()
-
-            # Get canvas width
-            canvas_width = self.filmstrip_canvas.winfo_width()
-            if canvas_width <= 1:
-                return
-
-            # Calculate time from click position
-            x_pos = event.x
-            time_ms = int((x_pos / canvas_width) * self.duration_ms)
-
-            # Seek to this time
-            self.seek_to_time(time_ms)
-            self.timeline_slider.set(self.current_time_ms)
+        """Update position indicator on film strip - delegates to FilmstripManager"""
+        if self.filmstrip_manager:
+            self.filmstrip_manager.update_position(self.current_time_ms)
 
     def on_filmstrip_resize(self, event):
-        """Handle filmstrip canvas resize - redraw filmstrip"""
-        if self.filmstrip_frames:
-            self.draw_filmstrip()
+        """Handle filmstrip canvas resize - redraw markers (filmstrip handled by manager)"""
         self.redraw_marker_indicators()
 
     # ========================================================================
@@ -2990,191 +2860,22 @@ class AudioMapperGUI:
     # ========================================================================
 
     def extract_and_display_waveform(self, video_filepath):
-        """Extract audio from video and display waveform"""
-        try:
-            print("⏳ Extracting audio for waveform...")
-
-            # Load video with moviepy
-            video = VideoFileClip(video_filepath)
-
-            if video.audio is None:
-                print("⚠ No audio track found in video")
-                self.waveform_canvas.delete("waveform_placeholder")
-                self.waveform_canvas.create_text(
-                    600, 40,
-                    text="No audio track in video",
-                    fill="#888",
-                    font=("Arial", 10)
-                )
-                video.close()
-                return
-
-            # Get audio as numpy array
-            audio_array = video.audio.to_soundarray(fps=22050)  # Downsample for performance
-            video.close()
-
-            # If stereo, convert to mono by averaging channels
-            if len(audio_array.shape) > 1:
-                audio_array = np.mean(audio_array, axis=1)
-
-            # Calculate waveform data (downsample for display)
-            self.calculate_waveform_data(audio_array)
-
-            # Draw waveform
-            self.draw_waveform()
-
-            print("✓ Waveform extracted and displayed")
-
-        except Exception as e:
-            print(f"⚠ Could not extract waveform: {e}")
-            self.waveform_canvas.delete("waveform_placeholder")
-            self.waveform_canvas.create_text(
-                600, 40,
-                text="Could not extract audio waveform",
-                fill="#888",
-                font=("Arial", 10)
-            )
-
-    def calculate_waveform_data(self, audio_array, target_width=1200):
-        """Calculate downsampled waveform data for display"""
-        # Ensure we have enough samples to fill the target width
-        total_samples = len(audio_array)
-
-        # Calculate samples per pixel
-        samples_per_pixel = max(1, total_samples // target_width)
-
-        # Calculate RMS (root mean square) for each pixel
-        waveform = []
-        for i in range(target_width):
-            start_idx = i * samples_per_pixel
-            end_idx = min(start_idx + samples_per_pixel, total_samples)
-
-            if start_idx < total_samples:
-                chunk = audio_array[start_idx:end_idx]
-                if len(chunk) > 0:
-                    rms = np.sqrt(np.mean(chunk**2))
-                    waveform.append(rms)
-                else:
-                    waveform.append(0)
-            else:
-                # Pad with silence if audio is shorter than target
-                waveform.append(0)
-
-        # Normalize to 0-1 range
-        max_val = max(waveform) if waveform else 1
-        if max_val > 0:
-            waveform = [w / max_val for w in waveform]
-
-        self.waveform_data = waveform
+        """Extract audio from video and display waveform - delegates to WaveformManager"""
+        if self.waveform_manager:
+            self.waveform_manager.extract_and_display(video_filepath)
 
     def draw_waveform(self):
-        """Draw waveform on canvas"""
-        if not self.waveform_data:
-            return
-
-        # Clear canvas
-        self.waveform_canvas.delete("all")
-
-        # Get canvas dimensions
-        canvas_width = self.waveform_canvas.winfo_width()
-        if canvas_width <= 1:
-            canvas_width = 1200  # Default width
-
-        canvas_height = self.waveform_canvas_height
-        mid_y = canvas_height // 2
-
-        # Draw waveform - ensure it fills the full canvas width
-        num_samples = len(self.waveform_data)
-
-        # Draw each sample, stretching to fill full canvas width
-        for i, amplitude in enumerate(self.waveform_data):
-            # Calculate x positions to fill entire canvas width
-            x_start = int((i / num_samples) * canvas_width)
-            x_end = int(((i + 1) / num_samples) * canvas_width)
-
-            # Use the midpoint or draw a rectangle for better coverage
-            x = (x_start + x_end) // 2
-
-            # Scale amplitude to fit canvas height
-            height = int(amplitude * (canvas_height / 2) * 0.9)
-
-            # Draw vertical line for this sample (use width=2 for better visibility)
-            self.waveform_canvas.create_line(
-                x, mid_y - height,
-                x, mid_y + height,
-                fill="#00D4FF",
-                width=2,
-                tags="waveform"
-            )
-
-        # Draw center line
-        self.waveform_canvas.create_line(
-            0, mid_y,
-            canvas_width, mid_y,
-            fill="#444",
-            width=1,
-            tags="centerline"
-        )
+        """Draw waveform on canvas - delegates to WaveformManager"""
+        if self.waveform_manager:
+            self.waveform_manager.draw()
 
     def update_waveform_position(self):
-        """Update position indicator on waveform"""
-        if not self.waveform_data or self.duration_ms == 0:
-            return
-
-        # Remove old position indicator
-        self.waveform_canvas.delete("position")
-
-        # Calculate position
-        canvas_width = self.waveform_canvas.winfo_width()
-        if canvas_width <= 1:
-            canvas_width = 1200
-
-        x_pos = int((self.current_time_ms / self.duration_ms) * canvas_width)
-
-        # Draw position indicator
-        self.waveform_canvas.create_line(
-            x_pos, 0,
-            x_pos, self.waveform_canvas_height,
-            fill="#FF6B00",
-            width=2,
-            tags="position"
-        )
-
-    def on_waveform_click(self, event):
-        """Handle click on waveform for scrubbing"""
-        if not self.video_loaded or self.duration_ms == 0:
-            return
-
-        # Check if we clicked on a marker (markers have tags)
-        items = self.waveform_canvas.find_overlapping(event.x - 5, event.y - 5, event.x + 5, event.y + 5)
-        clicked_on_marker = False
-        for item in items:
-            tags = self.waveform_canvas.gettags(item)
-            if "marker" in tags:
-                clicked_on_marker = True
-                break
-
-        # If didn't click on a marker, deselect and scrub timeline
-        if not clicked_on_marker:
-            self.deselect_marker()
-
-            # Get canvas width
-            canvas_width = self.waveform_canvas.winfo_width()
-            if canvas_width <= 1:
-                return
-
-            # Calculate time from click position
-            x_pos = event.x
-            time_ms = int((x_pos / canvas_width) * self.duration_ms)
-
-            # Seek to this time
-            self.seek_to_time(time_ms)
-            self.timeline_slider.set(self.current_time_ms)
+        """Update position indicator on waveform - delegates to WaveformManager"""
+        if self.waveform_manager:
+            self.waveform_manager.update_position(self.current_time_ms)
 
     def on_waveform_resize(self, event):
-        """Handle waveform canvas resize - redraw waveform"""
-        if self.waveform_data:
-            self.draw_waveform()
+        """Handle waveform canvas resize - redraw markers (waveform handled by manager)"""
         self.redraw_marker_indicators()
 
     # ========================================================================
