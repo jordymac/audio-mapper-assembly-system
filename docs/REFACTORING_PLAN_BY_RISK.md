@@ -165,7 +165,7 @@ AudioMapperGUI is a **2,665-line GOD CLASS** that needs to be broken down into f
 ### Sprint 2: Controllers (Medium Risk)
 5. ✅ Extract video controller
 6. ✅ Extract version manager
-7. ⬜ Decouple commands from GUI
+7. ✅ Decouple commands from GUI
 8. ⬜ Extract keyboard manager
 
 **Goal**: Reduce AudioMapperGUI by ~800 lines, isolate business logic
@@ -241,10 +241,10 @@ AudioMapperGUI is a **2,665-line GOD CLASS** that needs to be broken down into f
   - ✅ waveform_manager.py
   - ✅ filmstrip_manager.py
   - ✅ file_handler.py
-- 🔄 Sprint 2 (Medium Risk): IN PROGRESS (3/4 complete)
+- ✅ Sprint 2 (Medium Risk): COMPLETE (4/4 complete)
   - ✅ video_player_controller.py
   - ✅ version_manager.py
-  - ✅ Decouple commands from GUI (COMPLETE)
-  - ⬜ Extract keyboard manager (next)
+  - ✅ Decouple commands from GUI
+  - ✅ Extract keyboard manager
 - ⬜ Sprint 3 (High Risk): Not started
 - ⬜ Sprint 4 (Integration): Not started

@@ -49,6 +49,7 @@ from filmstrip_manager import FilmstripManager
 from file_handler import FileHandler
 from video_player_controller import VideoPlayerController
 from version_manager import MarkerVersionManager
+from keyboard_manager import KeyboardShortcutManager
 
 
 # ============================================================================
@@ -1834,8 +1835,28 @@ class AudioMapperGUI:
             on_template_prompt=self.prompt_template_info
         )
 
-        # Bind keyboard shortcuts
-        self.setup_keyboard_shortcuts()
+        # Initialize keyboard shortcut manager
+        self.keyboard_manager = KeyboardShortcutManager(
+            root=self.root,
+            callbacks={
+                'toggle_playback': lambda: self.video_player.toggle_playback() if self.video_player else None,
+                'add_marker': self.add_marker,
+                'delete_marker': self.delete_marker,
+                'nudge_selected_marker': self.nudge_selected_marker,
+                'nudge_selected_marker_by_frame': self.nudge_selected_marker_by_frame,
+                'step_time': self.step_time,
+                'step_frame': self.step_frame,
+                'undo': self.undo,
+                'redo': self.redo,
+                'play_marker_audio': self.play_marker_audio,
+                'generate_marker_audio': self.generate_marker_audio,
+                'load_video': self.load_video,
+                'get_selected_marker_index': lambda: self.selected_marker_index,
+                'set_selected_marker_index': lambda idx: setattr(self, 'selected_marker_index', idx),
+                'redraw_marker_indicators': self.redraw_marker_indicators,
+                'get_marker_row_widgets': lambda: self.marker_row_widgets
+            }
+        )
 
         # Start update loop for timeline
         self.update_timeline()
@@ -2180,137 +2201,6 @@ class AudioMapperGUI:
         canvas_width = event.width
         self.marker_canvas.itemconfig(self.marker_canvas_window, width=canvas_width)
 
-    def setup_keyboard_shortcuts(self):
-        """Bind keyboard shortcuts"""
-        # Track if shortcuts are enabled
-        self.shortcuts_enabled = True
-
-        # Bind shortcuts that check if enabled
-        self.root.bind("<space>", lambda e: self.shortcuts_enabled and self.toggle_playback())
-        self.root.bind("m", lambda e: self.shortcuts_enabled and self.add_marker())
-        self.root.bind("M", lambda e: self.shortcuts_enabled and self.add_marker())
-        self.root.bind("<Delete>", lambda e: self.shortcuts_enabled and self.delete_marker())
-        self.root.bind("<BackSpace>", lambda e: self.shortcuts_enabled and self.delete_marker())
-
-        # Arrow keys - context sensitive (nudge marker if selected, otherwise scrub timeline)
-        self.root.bind("<Left>", lambda e: self.shortcuts_enabled and self.handle_left_arrow())
-        self.root.bind("<Right>", lambda e: self.shortcuts_enabled and self.handle_right_arrow())
-
-        # Shift+Arrow - frame-precise (nudge marker by frame if selected, otherwise step timeline by frame)
-        self.root.bind("<Shift-Left>", lambda e: self.shortcuts_enabled and self.handle_shift_left_arrow())
-        self.root.bind("<Shift-Right>", lambda e: self.shortcuts_enabled and self.handle_shift_right_arrow())
-
-        # Alt/Cmd+Arrow - millisecond-precise (nudge marker by 1ms)
-        self.root.bind("<Alt-Left>", lambda e: self.shortcuts_enabled and self.nudge_selected_marker(-1))
-        self.root.bind("<Alt-Right>", lambda e: self.shortcuts_enabled and self.nudge_selected_marker(1))
-        self.root.bind("<Command-Left>", lambda e: self.shortcuts_enabled and self.nudge_selected_marker(-1))
-        self.root.bind("<Command-Right>", lambda e: self.shortcuts_enabled and self.nudge_selected_marker(1))
-
-        # Undo/Redo (works on both macOS and other platforms)
-        # On macOS: Cmd+Z / Cmd+Shift+Z
-        # On other platforms: Ctrl+Z / Ctrl+Shift+Z
-        self.root.bind("<Command-z>", lambda e: self.undo())  # macOS
-        self.root.bind("<Control-z>", lambda e: self.undo())  # Windows/Linux
-        self.root.bind("<Command-Shift-Z>", lambda e: self.redo())  # macOS
-        self.root.bind("<Control-Shift-Z>", lambda e: self.redo())  # Windows/Linux
-        self.root.bind("<Command-y>", lambda e: self.redo())  # macOS alternative
-        self.root.bind("<Control-y>", lambda e: self.redo())  # Windows alternative
-
-        # Marker operations (require a selected marker)
-        self.root.bind("p", lambda e: self.shortcuts_enabled and self.play_selected_marker_shortcut())
-        self.root.bind("P", lambda e: self.shortcuts_enabled and self.play_selected_marker_shortcut())
-        self.root.bind("g", lambda e: self.shortcuts_enabled and self.generate_selected_marker_shortcut())
-        self.root.bind("G", lambda e: self.shortcuts_enabled and self.generate_selected_marker_shortcut())
-        self.root.bind("r", lambda e: self.shortcuts_enabled and self.regenerate_selected_marker_shortcut())
-        self.root.bind("R", lambda e: self.shortcuts_enabled and self.regenerate_selected_marker_shortcut())
-
-        # Deselect marker
-        self.root.bind("<Escape>", lambda e: self.deselect_marker())
-
-        # File operations
-        self.root.bind("<Command-o>", lambda e: self.load_video())  # macOS
-        self.root.bind("<Control-o>", lambda e: self.load_video())  # Windows/Linux
-
-    def disable_shortcuts(self):
-        """Disable keyboard shortcuts when typing in text boxes"""
-        self.shortcuts_enabled = False
-
-    def enable_shortcuts(self):
-        """Re-enable keyboard shortcuts"""
-        self.shortcuts_enabled = True
-
-    def handle_left_arrow(self):
-        """Context-sensitive left arrow: nudge marker or scrub timeline"""
-        if self.selected_marker_index is not None:
-            self.nudge_selected_marker(-50)
-        else:
-            self.step_time(-50)
-
-    def handle_right_arrow(self):
-        """Context-sensitive right arrow: nudge marker or scrub timeline"""
-        if self.selected_marker_index is not None:
-            self.nudge_selected_marker(50)
-        else:
-            self.step_time(50)
-
-    def handle_shift_left_arrow(self):
-        """Context-sensitive Shift+Left: nudge marker by frame or step timeline by frame"""
-        if self.selected_marker_index is not None:
-            self.nudge_selected_marker_by_frame(-1)
-        else:
-            self.step_frame(-1)
-
-    def handle_shift_right_arrow(self):
-        """Context-sensitive Shift+Right: nudge marker by frame or step timeline by frame"""
-        if self.selected_marker_index is not None:
-            self.nudge_selected_marker_by_frame(1)
-        else:
-            self.step_frame(1)
-
-    def play_selected_marker_shortcut(self):
-        """Play selected marker's audio (keyboard shortcut: P)"""
-        if self.selected_marker_index is not None:
-            self.play_marker_audio(self.selected_marker_index)
-        else:
-            # No marker selected - show brief info
-            messagebox.showinfo(
-                "No Marker Selected",
-                "Select a marker first (click on it in the list or timeline)\n\n"
-                "Keyboard shortcut: P → Play selected marker"
-            )
-
-    def generate_selected_marker_shortcut(self):
-        """Generate audio for selected marker (keyboard shortcut: G)"""
-        if self.selected_marker_index is not None:
-            self.generate_marker_audio(self.selected_marker_index)
-        else:
-            # No marker selected - show brief info
-            messagebox.showinfo(
-                "No Marker Selected",
-                "Select a marker first (click on it in the list or timeline)\n\n"
-                "Keyboard shortcut: G → Generate selected marker"
-            )
-
-    def regenerate_selected_marker_shortcut(self):
-        """Regenerate audio for selected marker (keyboard shortcut: R)"""
-        if self.selected_marker_index is not None:
-            # Regenerate is the same as generate - it creates a new version
-            self.generate_marker_audio(self.selected_marker_index)
-        else:
-            # No marker selected - show brief info
-            messagebox.showinfo(
-                "No Marker Selected",
-                "Select a marker first (click on it in the list or timeline)\n\n"
-                "Keyboard shortcut: R → Regenerate selected marker"
-            )
-
-    def deselect_marker(self):
-        """Deselect the currently selected marker"""
-        if self.selected_marker_index is not None and self.selected_marker_index < len(self.marker_row_widgets):
-            self.marker_row_widgets[self.selected_marker_index].set_selected(False)
-        self.selected_marker_index = None
-        self.redraw_marker_indicators()
-        print("○ Marker deselected")
 
     # ========================================================================
     # MARKER DATA STRUCTURE HELPERS
