@@ -48,6 +48,7 @@ This is a **native desktop GUI application** built with Python's Tkinter framewo
    - `audio_service.py` - Audio generation, ElevenLabs API, batch operations
    - `marker_repository.py` - Marker CRUD operations (add, remove, update)
    - `marker_selection_manager.py` - Marker selection state and navigation
+   - `marker_manager.py` - High-level marker operations (create, delete, nudge, edit)
    - `version_manager.py` - Marker versioning and migration
    - `video_player_controller.py` - Video playback, seeking, timeline control
    - `waveform_manager.py` - Audio waveform visualization
@@ -78,7 +79,7 @@ This is a **native desktop GUI application** built with Python's Tkinter framewo
 - ✅ Sprint 1 & 2: Foundation modules extracted (8 modules)
 - ✅ Sprint 3.1: Audio generation service extracted
 - ✅ Sprint 3.2: Marker selection manager extracted
-- 🚧 Sprint 3.3: Full marker manager extraction (in progress)
+- ✅ Sprint 3.3: Marker manager extracted (coordinates marker operations)
 - 📋 Sprint 4: Final coordinator refactor (upcoming)
 
 ### Example Decision Tree:
@@ -90,6 +91,10 @@ This is a **native desktop GUI application** built with Python's Tkinter framewo
 **Q: "Where should I add a function to find markers by type?"**
 - ❌ NOT in audio_mapper.py
 - ✅ YES in marker_repository.py (data access layer)
+
+**Q: "Where should I add logic to create a marker with proper initialization?"**
+- ❌ NOT in audio_mapper.py
+- ✅ YES in marker_manager.py (coordinates marker creation with versioning)
 
 **Q: "Where should I add a keyboard shortcut for 'select next marker'?"**
 - ❌ NOT in audio_mapper.py

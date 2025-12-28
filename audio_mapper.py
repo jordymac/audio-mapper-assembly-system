@@ -49,6 +49,7 @@ from video_player_controller import VideoPlayerController
 from version_manager import MarkerVersionManager
 from keyboard_manager import KeyboardShortcutManager
 from marker_selection_manager import MarkerSelectionManager
+from marker_manager import MarkerManager
 from audio_service import AudioGenerationService
 
 
@@ -1664,6 +1665,9 @@ class AudioMapperGUI:
         # Marker selection manager (initialized after UI creation)
         self.marker_selection_manager = None
 
+        # Marker manager (coordinates marker operations)
+        self.marker_manager = None
+
         # Waveform and Filmstrip managers (initialized after UI creation)
         self.waveform_manager = None
         self.filmstrip_manager = None
@@ -1701,6 +1705,15 @@ class AudioMapperGUI:
             on_update_waveform=self._update_waveform_position,
             on_timeline_slider_update=lambda time_ms: self.timeline_slider.set(time_ms),
             on_template_prompt=self.prompt_template_info
+        )
+
+        # Initialize marker manager
+        self.marker_manager = MarkerManager(
+            marker_repository=self.marker_repository,
+            history_manager=self.history,
+            get_current_time=lambda: self.video_player.get_current_time() if self.video_player else 0,
+            get_duration=lambda: self.video_player.get_duration() if self.video_player else 0,
+            is_video_loaded=lambda: self.video_player.is_video_loaded() if self.video_player else False
         )
 
         # Initialize keyboard shortcut manager
@@ -2325,55 +2338,11 @@ class AudioMapperGUI:
             messagebox.showwarning("No Timeline", "Please load a video or create a blank timeline first")
             return
 
-        from datetime import datetime
+        # Delegate marker creation to marker_manager
+        marker_index = self.marker_manager.add_marker_by_type(marker_type)
 
-        # Generate asset slot and filename
-        type_prefix_map = {
-            "music": "MUS",
-            "sfx": "SFX",
-            "voice": "VOX",
-            "music_control": "CTRL"
-        }
-
-        prefix = type_prefix_map.get(marker_type, "ASSET")
-        marker_count = len([m for m in self.markers if m["type"] == marker_type])
-        asset_slot = f"{marker_type}_{marker_count}"
-        asset_file = f"{prefix}_{marker_count:05d}_v1.mp3"  # Include version suffix
-
-        # Create empty but valid prompt_data structure
-        prompt_data = self.create_default_prompt_data(marker_type)
-
-        # Create initial version object
-        version_obj = {
-            "version": 1,
-            "asset_file": asset_file,
-            "asset_id": None,
-            "created_at": datetime.now().isoformat(),
-            "status": "not yet generated",
-            "prompt_data_snapshot": prompt_data.copy()
-        }
-
-        current_time = self.video_player.get_current_time()
-
-        marker = {
-            "time_ms": current_time,
-            "type": marker_type,
-            "name": "",  # Custom marker name (to be filled in editor)
-            "prompt_data": prompt_data,
-            "asset_slot": asset_slot,
-            "asset_file": asset_file,
-            "asset_id": None,
-            "status": "not yet generated",
-            "current_version": 1,
-            "versions": [version_obj]
-        }
-
-        # Execute via command pattern for undo/redo support
-        command = AddMarkerCommand(self.marker_repository, marker)
-        self.history.execute_command(command)
-
-        # Get the index of the newly added marker (last one in the list)
-        marker_index = len(self.markers) - 1
+        if marker_index is None:
+            return
 
         # Define cancel callback that undoes the add if user cancels
         def on_cancel():
@@ -2382,6 +2351,7 @@ class AudioMapperGUI:
         # Immediately open editor for the new marker
         self.open_marker_editor(self.markers[marker_index], marker_index, on_cancel_callback=on_cancel)
 
+        current_time = self.markers[marker_index]["time_ms"]
         print(f"✓ Added {marker_type} marker at {current_time}ms")
 
     def add_marker(self):
@@ -2392,21 +2362,11 @@ class AudioMapperGUI:
 
     def open_marker_editor(self, marker, marker_index, on_cancel_callback=None):
         """Open the PromptEditorWindow modal for editing a marker"""
-        # Create save callback that uses EditMarkerCommand
+        # Create save callback that uses marker_manager
         def on_save(updated_marker):
-            # Get current marker state before update
-            old_marker = self.markers[marker_index].copy()
-
-            # Execute edit via command pattern for undo/redo support
-            command = EditMarkerCommand(
-                self.marker_repository,
-                marker_index,
-                old_marker,
-                updated_marker
-            )
-            self.history.execute_command(command)
-
-            print(f"✓ Updated marker at {updated_marker['time_ms']}ms")
+            # Delegate to marker_manager
+            if self.marker_manager.update_marker(marker_index, updated_marker):
+                print(f"✓ Updated marker at {updated_marker['time_ms']}ms")
 
         # Open the editor window
         PromptEditorWindow(
@@ -2426,26 +2386,23 @@ class AudioMapperGUI:
             messagebox.showwarning("No Selection", "Please select a marker to delete")
             return
 
-        if not 0 <= selected_index < len(self.markers):
-            return
-
         marker = self.markers[selected_index]
+        marker_time = marker['time_ms']
 
-        # Execute via command pattern for undo/redo support
-        command = DeleteMarkerCommand(self.marker_repository, marker)
-        self.history.execute_command(command)
-
-        print(f"✓ Deleted marker at {marker['time_ms']}ms")
+        # Delegate to marker_manager
+        if self.marker_manager.delete_marker_at_index(selected_index):
+            print(f"✓ Deleted marker at {marker_time}ms")
 
     def clear_all_markers(self):
         """Clear all markers with confirmation"""
         if not self.markers:
             return
 
-        if messagebox.askyesno("Clear All Markers", f"Delete all {len(self.markers)} markers?"):
-            self.markers.clear()
-            self.update_marker_list()
-            self.redraw_marker_indicators()
+        count = len(self.markers)
+        if messagebox.askyesno("Clear All Markers", f"Delete all {count} markers?"):
+            # Delegate to marker_manager
+            self.marker_manager.clear_all_markers()
+            print(f"✓ Cleared {count} markers")
 
     def nudge_selected_marker(self, delta_ms):
         """Nudge selected marker by delta_ms milliseconds"""
@@ -2457,13 +2414,10 @@ class AudioMapperGUI:
 
         marker = self.markers[selected_marker_index]
         old_time_ms = marker["time_ms"]
-        duration = self.video_player.get_duration()
-        new_time_ms = max(0, min(old_time_ms + delta_ms, duration))
 
-        if new_time_ms != old_time_ms:
-            # Create and execute move command
-            command = MoveMarkerCommand(self.marker_repository, selected_marker_index, old_time_ms, new_time_ms)
-            self.history.execute_command(command)
+        # Delegate to marker_manager
+        if self.marker_manager.nudge_marker(selected_marker_index, delta_ms):
+            new_time_ms = self.markers[selected_marker_index]["time_ms"]
             print(f"→ Nudged marker {delta_ms:+d}ms: {old_time_ms}ms → {new_time_ms}ms")
 
     def nudge_selected_marker_by_frame(self, delta_frames):
@@ -2472,12 +2426,21 @@ class AudioMapperGUI:
             print("Frame nudging only works with video loaded")
             return
 
-        # Calculate time per frame
-        fps = self.video_player.get_fps()
-        frame_duration_ms = 1000 / fps if fps > 0 else 33
-        delta_ms = int(delta_frames * frame_duration_ms)
+        selected_marker_index = self.marker_selection_manager.get_selected_index()
 
-        self.nudge_selected_marker(delta_ms)
+        if selected_marker_index is None:
+            print("No marker selected for nudging")
+            return
+
+        # Get FPS for frame calculation
+        fps = self.video_player.get_fps()
+        if fps <= 0:
+            fps = 30.0  # Default fallback
+
+        # Delegate to marker_manager
+        if self.marker_manager.nudge_marker_by_frame(selected_marker_index, delta_frames, fps):
+            marker = self.markers[selected_marker_index]
+            print(f"→ Nudged marker by {delta_frames:+d} frames to {marker['time_ms']}ms")
 
     def undo(self):
         """Undo the last action"""
