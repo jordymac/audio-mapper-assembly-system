@@ -33,6 +33,73 @@ This is a **native desktop GUI application** built with Python's Tkinter framewo
 - Claude's computer environment (this runs on local machine)
 - Browser-based interfaces
 
+## 🏗️ CRITICAL: Modular Architecture Guidelines
+
+**This project is actively being refactored from a monolithic God Class into a modular architecture.**
+
+### Before Adding or Modifying ANY Code:
+
+1. **NEVER add new functionality directly to `audio_mapper.py`**
+   - audio_mapper.py should ONLY be the GUI coordinator
+   - Always check if functionality belongs in an existing module first
+
+2. **Check existing modules FIRST:**
+   - `models.py` - Data structures (Marker, PromptData, etc.)
+   - `audio_service.py` - Audio generation, ElevenLabs API, batch operations
+   - `marker_repository.py` - Marker CRUD operations (add, remove, update)
+   - `marker_selection_manager.py` - Marker selection state and navigation
+   - `version_manager.py` - Marker versioning and migration
+   - `video_player_controller.py` - Video playback, seeking, timeline control
+   - `waveform_manager.py` - Audio waveform visualization
+   - `filmstrip_manager.py` - Video thumbnail filmstrip display
+   - `file_handler.py` - JSON import/export, project state persistence
+   - `keyboard_manager.py` - Keyboard shortcuts and hotkeys
+   - `commands.py` - Command pattern for undo/redo operations
+   - `history_manager.py` - Undo/redo stack management
+
+3. **When adding new features:**
+   - Ask: "Which existing module does this belong to?"
+   - If no module fits: "Should I create a new dedicated module?"
+   - ONLY add to audio_mapper.py if it's pure UI coordination
+
+4. **Module Integration Pattern:**
+   - New modules should be initialized in `audio_mapper.py.__init__()`
+   - Pass callbacks/references for coordination (not direct GUI access)
+   - Use dependency injection (pass what's needed to constructor)
+   - Follow existing patterns (see `MarkerSelectionManager`, `AudioGenerationService`)
+
+5. **Signs you should create a NEW module:**
+   - Feature has 5+ related methods
+   - Feature has its own state to manage
+   - Feature could be tested independently
+   - Feature is a distinct concern (audio, video, markers, UI, etc.)
+
+### Current Architecture Status:
+- ✅ Sprint 1 & 2: Foundation modules extracted (8 modules)
+- ✅ Sprint 3.1: Audio generation service extracted
+- ✅ Sprint 3.2: Marker selection manager extracted
+- 🚧 Sprint 3.3: Full marker manager extraction (in progress)
+- 📋 Sprint 4: Final coordinator refactor (upcoming)
+
+### Example Decision Tree:
+
+**Q: "Where should I add a function to batch-generate audio for all markers?"**
+- ❌ NOT in audio_mapper.py
+- ✅ YES in audio_service.py (already has single generation)
+
+**Q: "Where should I add a function to find markers by type?"**
+- ❌ NOT in audio_mapper.py
+- ✅ YES in marker_repository.py (data access layer)
+
+**Q: "Where should I add a keyboard shortcut for 'select next marker'?"**
+- ❌ NOT in audio_mapper.py
+- ✅ YES in keyboard_manager.py (shortcut registration)
+- ✅ CALL marker_selection_manager.select_marker_row() for the action
+
+**Q: "Where should I add UI layout for a new button panel?"**
+- ✅ YES in audio_mapper.py (pure UI coordination)
+- But wire the button to call methods in appropriate modules
+
 ## Development Commands
 
 ### Environment Setup
