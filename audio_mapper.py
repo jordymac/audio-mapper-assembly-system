@@ -1774,9 +1774,18 @@ class AudioMapperGUI:
         self.video_player = None
 
         # State variables
-        self.markers = []
         self.template_id = ""
         self.template_name = ""
+
+        # Marker repository (decoupled data layer)
+        from marker_repository import MarkerRepository
+        self.marker_repository = MarkerRepository()
+
+        # Register UI update callback for when markers change
+        self.marker_repository.add_change_listener(self._on_markers_changed)
+
+        # Backward compatibility: expose markers as property
+        self.markers = self.marker_repository.markers
 
         # Undo/redo system
         self.history = HistoryManager(max_history=50)
@@ -2598,7 +2607,7 @@ class AudioMapperGUI:
         }
 
         # Execute via command pattern for undo/redo support
-        command = AddMarkerCommand(self, marker)
+        command = AddMarkerCommand(self.marker_repository, marker)
         self.history.execute_command(command)
 
         # Get the index of the newly added marker (last one in the list)
@@ -2618,6 +2627,15 @@ class AudioMapperGUI:
         # This is called by keyboard shortcut 'M'
         # Default to SFX type
         self.add_marker_by_type("sfx")
+
+    def _on_markers_changed(self):
+        """
+        Callback triggered when marker repository changes.
+        Updates UI to reflect data changes.
+        This is registered as a listener with MarkerRepository.
+        """
+        self.update_marker_list()
+        self.redraw_marker_indicators()
 
     def update_marker_list(self):
         """Refresh marker list with custom row widgets"""
@@ -2883,7 +2901,7 @@ class AudioMapperGUI:
             old_marker_state: State before generation (for undo)
         """
         # Create undo command
-        command = GenerateAudioCommand(self, marker_index, old_marker_state)
+        command = GenerateAudioCommand(self.marker_repository, marker_index, old_marker_state)
         command.new_marker_state = self.markers[marker_index].copy()
         self.history.execute_command(command)
 
@@ -3263,7 +3281,7 @@ class AudioMapperGUI:
         old_marker = self.markers[index].copy()
 
         # Create and execute EditMarkerCommand for undo/redo support
-        command = EditMarkerCommand(self, index, old_marker, updated_marker)
+        command = EditMarkerCommand(self.marker_repository, index, old_marker, updated_marker)
         self.history.execute_command(command)
 
         print(f"✓ Updated marker at index {index}: {updated_marker['type']}")
@@ -3289,7 +3307,7 @@ class AudioMapperGUI:
         marker = self.markers[index]
 
         # Execute via command pattern for undo/redo support
-        command = DeleteMarkerCommand(self, marker, index)
+        command = DeleteMarkerCommand(self.marker_repository, marker, index)
         self.history.execute_command(command)
 
     def clear_all_markers(self):
@@ -3369,7 +3387,7 @@ class AudioMapperGUI:
             self.dragging_marker["time_ms"] = old_time_ms
 
             # Create and execute move command
-            command = MoveMarkerCommand(self, self.dragging_marker, old_time_ms, new_time_ms)
+            command = MoveMarkerCommand(self.marker_repository, self.drag_marker_index, old_time_ms, new_time_ms)
             self.history.execute_command(command)
 
             print(f"✓ Moved marker from {old_time_ms}ms to {new_time_ms}ms")
@@ -3395,7 +3413,7 @@ class AudioMapperGUI:
 
         if new_time_ms != old_time_ms:
             # Create and execute move command
-            command = MoveMarkerCommand(self, marker, old_time_ms, new_time_ms)
+            command = MoveMarkerCommand(self.marker_repository, self.selected_marker_index, old_time_ms, new_time_ms)
             self.history.execute_command(command)
             print(f"→ Nudged marker {delta_ms:+d}ms: {old_time_ms}ms → {new_time_ms}ms")
 

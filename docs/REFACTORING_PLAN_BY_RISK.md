@@ -241,10 +241,10 @@ AudioMapperGUI is a **2,665-line GOD CLASS** that needs to be broken down into f
   - ✅ waveform_manager.py
   - ✅ filmstrip_manager.py
   - ✅ file_handler.py
-- 🔄 Sprint 2 (Medium Risk): IN PROGRESS (2/4 complete)
+- 🔄 Sprint 2 (Medium Risk): IN PROGRESS (3/4 complete)
   - ✅ video_player_controller.py
   - ✅ version_manager.py
-  - ⬜ Decouple commands from GUI (next)
-  - ⬜ Extract keyboard manager
+  - ✅ Decouple commands from GUI (COMPLETE)
+  - ⬜ Extract keyboard manager (next)
 - ⬜ Sprint 3 (High Risk): Not started
 - ⬜ Sprint 4 (Integration): Not started
