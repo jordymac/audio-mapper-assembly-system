@@ -8,21 +8,23 @@ This document outlines planned improvements, known issues, and feature ideas for
 
 ## 🔴 Critical Issues
 
-### 1. Versioning Logic Bug
+### 1. Versioning Logic Bug ✅ FIXED (2025-12-28)
 **Problem**: When saving a newly created marker for the first time, it creates version 1 even though audio hasn't been generated yet. Then clicking "Generate" creates version 2.
 
 **Expected Behavior**:
 - First save should trigger generation → version 1
 - Subsequent generations create version 2, 3, etc.
 
-**Fix Strategy**:
-- [ ] Combine "Save" and "Generate" for first-time markers
-- [ ] Only show "Save" for editing existing markers
-- [ ] Or: Don't create version until first generation completes
+**Fix Applied**:
+- [x] Don't create version until first generation completes
+- Removed version creation from `PromptEditorWindow.on_save()` method
+- Versions now created ONLY during generation (not on save)
+- Workflow: Create → Save (no version) → Generate (v1) → Regenerate (v2, v3, etc.)
 
-**Files Affected**:
-- `audio_mapper.py` - Marker editor save logic
-- Need to review version counter increment logic
+**Files Changed**:
+- `ui/editors/prompt_editor.py` - Removed version creation from save logic
+- `tests/test_version_history_ui.py` - Updated test to match new behavior
+- `ui/components/marker_row.py` - Fixed diagnostic warnings
 
 ---
 

@@ -30,7 +30,7 @@ def test_version_history_ui():
     assert hasattr(PromptEditorWindow, 'on_version_selected'), "Should have version selection handler"
     assert hasattr(PromptEditorWindow, 'on_rollback_version'), "Should have rollback handler"
     assert hasattr(PromptEditorWindow, 'on_play_version'), "Should have play handler"
-    assert hasattr(PromptEditorWindow, '_check_if_prompt_changed'), "Should have prompt change checker"
+    # NOTE: _check_if_prompt_changed removed - versions now created only during generation
     print("  ✓ All version history methods exist")
 
     # Test 3: Check constructor accepts gui_ref
@@ -41,13 +41,12 @@ def test_version_history_ui():
     assert 'gui_ref' in params, "Constructor should accept gui_ref parameter"
     print("  ✓ Constructor accepts gui_ref parameter")
 
-    # Test 4: Check on_save creates versions
-    print("\n✓ Test 4: Save behavior creates versions")
-    # The on_save method should call gui_ref.add_new_version if prompt changed
+    # Test 4: Check on_save does NOT create versions
+    print("\n✓ Test 4: Save behavior (no version creation)")
+    # UPDATED: on_save should NOT create versions - versions created only during generation
     source = inspect.getsource(PromptEditorWindow.on_save)
-    assert 'add_new_version' in source, "on_save should call add_new_version"
-    assert '_check_if_prompt_changed' in source, "on_save should check if prompt changed"
-    print("  ✓ on_save creates new versions when prompt changes")
+    assert 'add_new_version' not in source, "on_save should NOT call add_new_version (versions created only on generate)"
+    print("  ✓ on_save does NOT create versions (correct - versions created on generate only)")
 
     # Test 5: Verify version dropdown creation
     print("\n✓ Test 5: Version dropdown components")

@@ -9,7 +9,7 @@ Extracted from audio_mapper.py as part of Sprint 4.1 refactoring.
 import tkinter as tk
 from tkinter import ttk, messagebox
 import os
-from color_scheme import COLORS
+from config.color_scheme import COLORS
 from ui.editors.sfx_editor import SfxEditor
 from ui.editors.voice_editor import VoiceEditor
 from ui.editors.music_editor import MusicEditor
@@ -519,17 +519,8 @@ class PromptEditorWindow:
             if not self.current_editor.validate_and_save():
                 return  # Validation failed
 
-            # Check if prompt_data actually changed
-            prompt_data_changed = self._check_if_prompt_changed()
-
-            # If prompt data changed, create new version (not_yet_generated status)
-            if prompt_data_changed and self.gui_ref and hasattr(self.gui_ref, 'add_new_version'):
-                try:
-                    new_version = self.gui_ref.add_new_version(self.marker, self.marker["prompt_data"])
-                    # Update current version in marker
-                    self.marker["current_version"] = new_version
-                except Exception as e:
-                    print(f"Warning: Failed to create new version: {e}")
+            # NOTE: Version creation now happens ONLY during generation (not on save)
+            # This ensures the workflow: Create → Save → Generate (v1) → Regenerate (v2, v3, etc.)
 
             # If validation passed, save and close
             self.result = self.marker
@@ -558,18 +549,3 @@ class PromptEditorWindow:
             print(f"Error in on_save: {e}")
             import traceback
             traceback.print_exc()
-
-    def _check_if_prompt_changed(self):
-        """Check if prompt_data changed from current version's snapshot"""
-        # Get current version's prompt snapshot
-        current_version = self.marker.get('current_version', 1)
-        versions = self.marker.get('versions', [])
-
-        for v in versions:
-            if v['version'] == current_version:
-                snapshot = v.get('prompt_data_snapshot', {})
-                # Compare with current prompt_data
-                return self.marker.get('prompt_data') != snapshot
-
-        # If no version found, consider it changed
-        return True
