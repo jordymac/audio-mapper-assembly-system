@@ -48,6 +48,7 @@ from file_handler import FileHandler
 from video_player_controller import VideoPlayerController
 from version_manager import MarkerVersionManager
 from keyboard_manager import KeyboardShortcutManager
+from marker_selection_manager import MarkerSelectionManager
 from audio_service import AudioGenerationService
 
 
@@ -1586,7 +1587,7 @@ class MarkerRow:
 
     def on_row_click(self, event=None):
         """Handle row click - select this marker"""
-        self.gui.select_marker_row(self.marker_index)
+        self.gui.marker_selection_manager.select_marker_row(self.marker_index)
 
     def on_row_double_click(self, event=None):
         """Handle double-click - edit marker"""
@@ -1660,8 +1661,8 @@ class AudioMapperGUI:
         self.drag_start_x = None
         self.drag_marker_index = None
 
-        # Selected marker for keyboard nudging
-        self.selected_marker_index = None
+        # Marker selection manager (initialized after UI creation)
+        self.marker_selection_manager = None
 
         # Waveform and Filmstrip managers (initialized after UI creation)
         self.waveform_manager = None
@@ -1679,6 +1680,15 @@ class AudioMapperGUI:
         self.create_timeline_controls()
         self.create_marker_controls()
         self.create_marker_list()
+
+        # Initialize marker selection manager
+        self.marker_selection_manager = MarkerSelectionManager(
+            markers=self.markers,
+            marker_row_widgets=self.marker_row_widgets,
+            marker_canvas=self.marker_canvas,
+            on_seek=self._on_marker_seek,
+            on_redraw_indicators=self.redraw_marker_indicators
+        )
 
         # Initialize video player controller
         self.video_player = VideoPlayerController(
@@ -1709,8 +1719,8 @@ class AudioMapperGUI:
                 'play_marker_audio': self.play_marker_audio,
                 'generate_marker_audio': self.generate_marker_audio,
                 'load_video': self.load_video,
-                'get_selected_marker_index': lambda: self.selected_marker_index,
-                'set_selected_marker_index': lambda idx: setattr(self, 'selected_marker_index', idx),
+                'get_selected_marker_index': lambda: self.marker_selection_manager.get_selected_index(),
+                'set_selected_marker_index': lambda idx: self.marker_selection_manager.set_selected_index(idx),
                 'redraw_marker_indicators': self.redraw_marker_indicators,
                 'get_marker_row_widgets': lambda: self.marker_row_widgets
             }
@@ -1782,7 +1792,7 @@ class AudioMapperGUI:
             thumb_width=self.filmstrip_thumb_width,
             thumb_height=self.filmstrip_thumb_height,
             on_seek=self._on_filmstrip_seek,
-            on_deselect_marker=self.deselect_marker
+            on_deselect_marker=lambda: self.marker_selection_manager.deselect_marker()
         )
 
     def create_waveform_display(self):
@@ -1805,7 +1815,7 @@ class AudioMapperGUI:
             canvas=self.waveform_canvas,
             canvas_height=self.waveform_canvas_height,
             on_seek=self._on_waveform_seek,
-            on_deselect_marker=self.deselect_marker
+            on_deselect_marker=lambda: self.marker_selection_manager.deselect_marker()
         )
 
     def _on_waveform_seek(self, time_ms):
@@ -1815,6 +1825,11 @@ class AudioMapperGUI:
 
     def _on_filmstrip_seek(self, time_ms):
         """Callback when user clicks filmstrip to seek"""
+        self.seek_to_time(time_ms)
+        self.timeline_slider.set(self.video_player.get_current_time())
+
+    def _on_marker_seek(self, time_ms):
+        """Callback when jumping to a marker"""
         self.seek_to_time(time_ms)
         self.timeline_slider.set(self.video_player.get_current_time())
 
@@ -1942,7 +1957,6 @@ class AudioMapperGUI:
 
         # Store marker row widgets
         self.marker_row_widgets = []
-        self.selected_marker_index = None
 
         # Right side panel - Export and batch operations
         export_container = tk.Frame(main_container, padx=10, width=180)
@@ -2024,7 +2038,7 @@ class AudioMapperGUI:
         tk.Button(
             button_frame,
             text="Jump to Marker",
-            command=self.jump_to_marker,
+            command=lambda: self.marker_selection_manager.jump_to_marker(),
             width=15,
             height=2,
             font=("Arial", 9)
@@ -2376,6 +2390,109 @@ class AudioMapperGUI:
         # Default to SFX type
         self.add_marker_by_type("sfx")
 
+    def open_marker_editor(self, marker, marker_index, on_cancel_callback=None):
+        """Open the PromptEditorWindow modal for editing a marker"""
+        # Create save callback that uses EditMarkerCommand
+        def on_save(updated_marker):
+            # Get current marker state before update
+            old_marker = self.markers[marker_index].copy()
+
+            # Execute edit via command pattern for undo/redo support
+            command = EditMarkerCommand(
+                self.marker_repository,
+                marker_index,
+                old_marker,
+                updated_marker
+            )
+            self.history.execute_command(command)
+
+            print(f"✓ Updated marker at {updated_marker['time_ms']}ms")
+
+        # Open the editor window
+        PromptEditorWindow(
+            parent=self.root,
+            marker=marker,
+            marker_index=marker_index,
+            on_save_callback=on_save,
+            on_cancel_callback=on_cancel_callback,
+            gui_ref=self
+        )
+
+    def delete_marker(self):
+        """Delete the currently selected marker"""
+        selected_index = self.marker_selection_manager.get_selected_index()
+
+        if selected_index is None:
+            messagebox.showwarning("No Selection", "Please select a marker to delete")
+            return
+
+        if not 0 <= selected_index < len(self.markers):
+            return
+
+        marker = self.markers[selected_index]
+
+        # Execute via command pattern for undo/redo support
+        command = DeleteMarkerCommand(self.marker_repository, marker)
+        self.history.execute_command(command)
+
+        print(f"✓ Deleted marker at {marker['time_ms']}ms")
+
+    def clear_all_markers(self):
+        """Clear all markers with confirmation"""
+        if not self.markers:
+            return
+
+        if messagebox.askyesno("Clear All Markers", f"Delete all {len(self.markers)} markers?"):
+            self.markers.clear()
+            self.update_marker_list()
+            self.redraw_marker_indicators()
+
+    def nudge_selected_marker(self, delta_ms):
+        """Nudge selected marker by delta_ms milliseconds"""
+        selected_marker_index = self.marker_selection_manager.get_selected_index()
+
+        if selected_marker_index is None or selected_marker_index >= len(self.markers):
+            print("No marker selected for nudging")
+            return
+
+        marker = self.markers[selected_marker_index]
+        old_time_ms = marker["time_ms"]
+        duration = self.video_player.get_duration()
+        new_time_ms = max(0, min(old_time_ms + delta_ms, duration))
+
+        if new_time_ms != old_time_ms:
+            # Create and execute move command
+            command = MoveMarkerCommand(self.marker_repository, selected_marker_index, old_time_ms, new_time_ms)
+            self.history.execute_command(command)
+            print(f"→ Nudged marker {delta_ms:+d}ms: {old_time_ms}ms → {new_time_ms}ms")
+
+    def nudge_selected_marker_by_frame(self, delta_frames):
+        """Nudge selected marker by exact number of frames"""
+        if not self.video_player.is_video_loaded() or not self.video_player.video_capture:
+            print("Frame nudging only works with video loaded")
+            return
+
+        # Calculate time per frame
+        fps = self.video_player.get_fps()
+        frame_duration_ms = 1000 / fps if fps > 0 else 33
+        delta_ms = int(delta_frames * frame_duration_ms)
+
+        self.nudge_selected_marker(delta_ms)
+
+    def undo(self):
+        """Undo the last action"""
+        if self.history.undo():
+            print("↶ Undo")
+        else:
+            print("Nothing to undo")
+
+    def redo(self):
+        """Redo the last undone action"""
+        if self.history.redo():
+            print("↷ Redo")
+        else:
+            print("Nothing to redo")
+
     def _on_markers_changed(self):
         """
         Callback triggered when marker repository changes.
@@ -2401,28 +2518,90 @@ class AudioMapperGUI:
         self.marker_rows_frame.update_idletasks()
         self.marker_canvas.configure(scrollregion=self.marker_canvas.bbox("all"))
 
-    def select_marker_row(self, marker_index):
-        """
-        Select a marker row and update visual state
+    def redraw_marker_indicators(self):
+        """Redraw marker indicators on waveform and filmstrip canvases"""
+        # Remove old markers
+        self.waveform_canvas.delete("marker")
+        self.filmstrip_canvas.delete("marker")
 
-        Args:
-            marker_index: Index of marker to select
-        """
-        # Deselect previous selection
-        if self.selected_marker_index is not None and self.selected_marker_index < len(self.marker_row_widgets):
-            self.marker_row_widgets[self.selected_marker_index].set_selected(False)
+        duration = self.video_player.get_duration()
+        if not self.video_player.is_video_loaded() or duration == 0:
+            return
 
-        # Select new row
-        if 0 <= marker_index < len(self.marker_row_widgets):
-            self.selected_marker_index = marker_index
-            self.marker_row_widgets[marker_index].set_selected(True)
+        # Get canvas widths
+        waveform_width = self.waveform_canvas.winfo_width()
+        filmstrip_width = self.filmstrip_canvas.winfo_width()
 
-            # Scroll to make selected row visible
-            row_widget = self.marker_row_widgets[marker_index]
-            self.marker_canvas.yview_moveto(marker_index / len(self.marker_row_widgets))
+        if waveform_width <= 1:
+            waveform_width = 1200
+        if filmstrip_width <= 1:
+            filmstrip_width = 1200
 
-            # Also highlight corresponding timeline marker
-            self.redraw_marker_indicators()
+        # Marker colors by type
+        marker_colors = {
+            "music": "#2196F3",      # Blue
+            "sfx": "#F44336",        # Red
+            "voice": "#4CAF50",      # Green
+            "music_control": "#9C27B0"  # Purple
+        }
+
+        # Draw each marker
+        for i, marker in enumerate(self.markers):
+            time_ms = marker["time_ms"]
+            marker_type = marker.get("type", "music")
+            color = marker_colors.get(marker_type, "#FFF")
+
+            # Check if this marker is selected using MarkerSelectionManager
+            is_selected = (i == self.marker_selection_manager.get_selected_index())
+
+            # Calculate x position
+            waveform_x = int((time_ms / duration) * waveform_width)
+            filmstrip_x = int((time_ms / duration) * filmstrip_width)
+
+            # Draw on waveform (thicker if selected)
+            line_width = 5 if is_selected else 3
+            self.waveform_canvas.create_line(
+                waveform_x, 0,
+                waveform_x, self.waveform_canvas_height,
+                fill=color,
+                width=line_width,
+                tags=("marker", f"marker_{i}")
+            )
+
+            # Draw selection glow if selected
+            if is_selected:
+                self.waveform_canvas.create_line(
+                    waveform_x, 0,
+                    waveform_x, self.waveform_canvas_height,
+                    fill="white",
+                    width=9,
+                    tags=("marker", f"marker_{i}", "glow")
+                )
+                # Move glow behind the main line
+                self.waveform_canvas.tag_lower("glow")
+
+            # Draw marker head (draggable handle) - larger if selected
+            head_size = 10 if is_selected else 8
+            outline_width = 3 if is_selected else 1
+            self.waveform_canvas.create_polygon(
+                waveform_x - head_size, 0,
+                waveform_x + head_size, 0,
+                waveform_x, 12 if is_selected else 10,
+                fill=color,
+                outline="white" if is_selected else "black",
+                width=outline_width,
+                tags=("marker", f"marker_{i}", "marker_handle")
+            )
+
+            # Draw on filmstrip (thicker if selected)
+            filmstrip_width_val = 5 if is_selected else 3
+            self.filmstrip_canvas.create_line(
+                filmstrip_x, 0,
+                filmstrip_x, self.filmstrip_canvas_height,
+                fill=color,
+                width=filmstrip_width_val,
+                tags=("marker", f"marker_{i}")
+            )
 
     def play_marker_audio(self, marker_index):
         """
