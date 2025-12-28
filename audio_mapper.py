@@ -47,6 +47,7 @@ from models import Marker, AudioVersion, MarkerType, MarkerStatus, create_marker
 from waveform_manager import WaveformManager
 from filmstrip_manager import FilmstripManager
 from file_handler import FileHandler
+from video_player_controller import VideoPlayerController
 
 
 # ============================================================================
@@ -1768,18 +1769,10 @@ class AudioMapperGUI:
         self.root.title("Audio Mapper - Timecode Mapping Tool")
         self.root.geometry("1200x800")
 
-        # Video player components
-        self.video_capture = None
-        self.current_frame = None
-        self.photo_image = None
+        # Video player controller (initialized after UI creation)
+        self.video_player = None
 
         # State variables
-        self.current_time_ms = 0
-        self.duration_ms = 0
-        self.fps = 30  # Default FPS
-        self.total_frames = 0
-        self.is_playing = False
-        self.video_loaded = False
         self.markers = []
         self.template_id = ""
         self.template_name = ""
@@ -1817,6 +1810,19 @@ class AudioMapperGUI:
         self.create_timeline_controls()
         self.create_marker_controls()
         self.create_marker_list()
+
+        # Initialize video player controller
+        self.video_player = VideoPlayerController(
+            video_canvas=self.video_canvas,
+            play_button=self.play_button,
+            timeline_slider=self.timeline_slider,
+            timestamp_label=self.timestamp_label,
+            fps_label=self.fps_label,
+            on_update_filmstrip=self._update_filmstrip_position,
+            on_update_waveform=self._update_waveform_position,
+            on_timeline_slider_update=lambda time_ms: self.timeline_slider.set(time_ms),
+            on_template_prompt=self.prompt_template_info
+        )
 
         # Bind keyboard shortcuts
         self.setup_keyboard_shortcuts()
@@ -1916,12 +1922,12 @@ class AudioMapperGUI:
     def _on_waveform_seek(self, time_ms):
         """Callback when user clicks waveform to seek"""
         self.seek_to_time(time_ms)
-        self.timeline_slider.set(self.current_time_ms)
+        self.timeline_slider.set(self.video_player.get_current_time())
 
     def _on_filmstrip_seek(self, time_ms):
         """Callback when user clicks filmstrip to seek"""
         self.seek_to_time(time_ms)
-        self.timeline_slider.set(self.current_time_ms)
+        self.timeline_slider.set(self.video_player.get_current_time())
 
     def create_timeline_controls(self):
         """Create timeline scrubber and controls"""
@@ -2576,61 +2582,29 @@ class AudioMapperGUI:
     # ========================================================================
 
     def load_video(self):
-        """Load video file using OpenCV"""
-        filepath = filedialog.askopenfilename(
-            title="Select Video File",
-            filetypes=[
-                ("Video files", "*.mp4 *.mov *.avi *.mkv *.flv *.wmv"),
-                ("All files", "*.*")
-            ]
-        )
+        """Load video file using OpenCV - delegates to VideoPlayerController"""
+        # Delegate to video player controller
+        filepath = self.video_player.load_video()
 
         if not filepath:
             return
 
-        # Release previous video if any
-        if self.video_capture:
-            self.video_capture.release()
-
-        # Open video with OpenCV
-        self.video_capture = cv2.VideoCapture(filepath)
-
-        if not self.video_capture.isOpened():
-            messagebox.showerror("Error", "Could not open video file")
-            return
-
-        # Get video properties
-        self.fps = self.video_capture.get(cv2.CAP_PROP_FPS)
-        self.total_frames = int(self.video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.duration_ms = int((self.total_frames / self.fps) * 1000)
-
-        # Update UI
-        self.timeline_slider.config(to=self.duration_ms)
-        self.video_loaded = True
-        self.fps_label.config(text=f"{self.fps:.2f} FPS")
-
-        # Remove placeholder
-        self.video_canvas.delete("placeholder")
-
-        # Display first frame
-        self.seek_to_time(0)
-
         # Extract and display film strip
         if self.filmstrip_manager:
-            self.filmstrip_manager.extract_frames(self.video_capture, self.duration_ms, self.fps, num_thumbs=15)
+            self.filmstrip_manager.extract_frames(
+                self.video_player.video_capture,
+                self.video_player.duration_ms,
+                self.video_player.fps,
+                num_thumbs=15
+            )
             self.filmstrip_manager.draw()
 
         # Extract and display audio waveform
         if self.waveform_manager:
             self.waveform_manager.extract_and_display(filepath)
 
-        # Prompt for template info
-        self.prompt_template_info()
-
-        print(f"✓ Video loaded: {self.total_frames} frames, {self.fps:.2f} FPS, {self.duration_ms}ms duration")
-
     def create_blank_timeline(self):
-        """Create blank timeline without video"""
+        """Create blank timeline without video - delegates to VideoPlayerController"""
         dialog = tk.Toplevel(self.root)
         dialog.title("Create Blank Timeline")
         dialog.geometry("300x150")
@@ -2644,24 +2618,9 @@ class AudioMapperGUI:
         duration_entry.pack(pady=5)
 
         def create():
-            try:
-                seconds = float(duration_var.get())
-                self.duration_ms = int(seconds * 1000)
-                self.timeline_slider.config(to=self.duration_ms)
-                self.video_loaded = True
-                self.fps_label.config(text="Blank Timeline")
-                self.video_canvas.delete("placeholder")
-                self.video_canvas.create_text(
-                    600, 200,
-                    text=f"Blank Timeline\n{seconds}s duration",
-                    fill="white",
-                    font=("Arial", 14),
-                    tags="blank_info"
-                )
+            # Delegate to video player controller
+            if self.video_player.create_blank_timeline(duration_var.get()):
                 dialog.destroy()
-                self.prompt_template_info()
-            except ValueError:
-                messagebox.showerror("Invalid Input", "Please enter a valid number")
 
         tk.Button(dialog, text="Create", command=create, bg="#4CAF50", fg="white", padx=20).pack(pady=10)
 
@@ -2689,150 +2648,42 @@ class AudioMapperGUI:
         tk.Button(dialog, text="OK", command=save, bg="#4CAF50", fg="white", padx=30).pack(pady=15)
 
     def seek_to_time(self, time_ms):
-        """Seek to specific time in milliseconds"""
-        if not self.video_loaded:
-            return
-
-        self.current_time_ms = max(0, min(time_ms, self.duration_ms))
-
-        # If we have a video, seek to the frame
-        if self.video_capture:
-            frame_number = int((self.current_time_ms / 1000) * self.fps)
-            self.video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-            self.display_current_frame()
-
-        self.update_timestamp_display()
-
-    def display_current_frame(self):
-        """Read and display the current frame on canvas"""
-        if not self.video_capture:
-            return
-
-        ret, frame = self.video_capture.read()
-
-        if not ret:
-            return
-
-        # Convert BGR (OpenCV) to RGB (PIL)
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Get canvas size
-        canvas_width = self.video_canvas.winfo_width()
-        canvas_height = self.video_canvas.winfo_height()
-
-        # Skip if canvas not ready
-        if canvas_width <= 1 or canvas_height <= 1:
-            return
-
-        # Resize frame to fit canvas while maintaining aspect ratio
-        frame_height, frame_width = frame_rgb.shape[:2]
-        scale = min(canvas_width / frame_width, canvas_height / frame_height)
-        new_width = int(frame_width * scale)
-        new_height = int(frame_height * scale)
-
-        frame_resized = cv2.resize(frame_rgb, (new_width, new_height))
-
-        # Convert to PIL Image then to PhotoImage
-        image = Image.fromarray(frame_resized)
-        self.photo_image = ImageTk.PhotoImage(image)
-
-        # Display on canvas
-        self.video_canvas.delete("all")
-        self.video_canvas.create_image(
-            canvas_width // 2,
-            canvas_height // 2,
-            image=self.photo_image,
-            anchor=tk.CENTER
-        )
+        """Seek to specific time - delegates to VideoPlayerController"""
+        self.video_player.seek_to_time(time_ms)
 
     def toggle_playback(self):
-        """Toggle play/pause"""
-        if not self.video_loaded:
-            messagebox.showwarning("No Video", "Please load a video or create a blank timeline first")
-            return
-
-        self.is_playing = not self.is_playing
-
-        if self.is_playing:
-            self.play_button.config(text="⏸ Pause")
-        else:
-            self.play_button.config(text="▶ Play")
+        """Toggle play/pause - delegates to VideoPlayerController"""
+        self.video_player.toggle_playback()
 
     def step_time(self, delta_ms):
-        """Step forward/backward by delta_ms milliseconds"""
-        if not self.video_loaded:
-            return
-
-        new_time = self.current_time_ms + delta_ms
-        self.seek_to_time(new_time)
-        self.timeline_slider.set(self.current_time_ms)
+        """Step forward/backward by delta_ms - delegates to VideoPlayerController"""
+        self.video_player.step_time(delta_ms)
 
     def step_frame(self, delta_frames):
-        """Step forward/backward by exact number of frames"""
-        if not self.video_loaded or not self.video_capture:
-            return
-
-        # Calculate time per frame in milliseconds
-        frame_duration_ms = 1000 / self.fps if self.fps > 0 else 33
-
-        # Step by the specified number of frames
-        delta_ms = int(delta_frames * frame_duration_ms)
-        new_time = self.current_time_ms + delta_ms
-        self.seek_to_time(new_time)
-        self.timeline_slider.set(self.current_time_ms)
+        """Step forward/backward by frames - delegates to VideoPlayerController"""
+        self.video_player.step_frame(delta_frames)
 
     def on_timeline_change(self, value):
-        """Handle timeline slider change"""
-        if not self.video_loaded:
-            return
-
-        new_time_ms = int(float(value))
-        self.seek_to_time(new_time_ms)
+        """Handle timeline slider change - delegates to VideoPlayerController"""
+        self.video_player.on_timeline_change(value)
 
     def update_timeline(self):
-        """Update timeline position and display (called repeatedly)"""
-        if self.video_loaded and self.is_playing:
-            # Advance time based on FPS
-            frame_duration_ms = 1000 / self.fps if self.fps > 0 else 33  # Default ~30fps
-            self.current_time_ms += int(frame_duration_ms)
-
-            if self.current_time_ms >= self.duration_ms:
-                self.current_time_ms = self.duration_ms
-                self.is_playing = False
-                self.play_button.config(text="▶ Play")
-
-            # Update slider and display
-            self.timeline_slider.set(self.current_time_ms)
-
-            if self.video_capture:
-                self.display_current_frame()
-
-        # Update timestamp
-        self.update_timestamp_display()
-
-        # Update film strip position indicator
-        if self.filmstrip_manager:
-            self.filmstrip_manager.update_position(self.current_time_ms)
-
-        # Update waveform position indicator
-        if self.waveform_manager:
-            self.waveform_manager.update_position(self.current_time_ms)
+        """Update timeline position and display - delegates to VideoPlayerController"""
+        # Delegate to video player controller
+        self.video_player.update_timeline()
 
         # Schedule next update (30 FPS refresh rate)
         self.root.after(33, self.update_timeline)
 
-    def update_timestamp_display(self):
-        """Update timestamp label"""
-        ms = self.current_time_ms
-        seconds = ms // 1000
-        milliseconds = ms % 1000
-        minutes = seconds // 60
-        seconds = seconds % 60
-        hours = minutes // 60
-        minutes = minutes % 60
+    def _update_filmstrip_position(self, time_ms):
+        """Callback to update filmstrip position"""
+        if self.filmstrip_manager:
+            self.filmstrip_manager.update_position(time_ms)
 
-        timestamp = f"{hours:02d}:{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
-        self.timestamp_label.config(text=timestamp)
+    def _update_waveform_position(self, time_ms):
+        """Callback to update waveform position"""
+        if self.waveform_manager:
+            self.waveform_manager.update_position(time_ms)
 
     # ========================================================================
     # FILM STRIP AND WAVEFORM METHODS - Now handled by managers
@@ -2849,7 +2700,7 @@ class AudioMapperGUI:
     def update_filmstrip_position(self):
         """Update position indicator on film strip - delegates to FilmstripManager"""
         if self.filmstrip_manager:
-            self.filmstrip_manager.update_position(self.current_time_ms)
+            self.filmstrip_manager.update_position(self.video_player.get_current_time())
 
     def on_filmstrip_resize(self, event):
         """Handle filmstrip canvas resize - redraw markers (filmstrip handled by manager)"""
@@ -2872,7 +2723,7 @@ class AudioMapperGUI:
     def update_waveform_position(self):
         """Update position indicator on waveform - delegates to WaveformManager"""
         if self.waveform_manager:
-            self.waveform_manager.update_position(self.current_time_ms)
+            self.waveform_manager.update_position(self.video_player.get_current_time())
 
     def on_waveform_resize(self, event):
         """Handle waveform canvas resize - redraw markers (waveform handled by manager)"""
@@ -2884,7 +2735,7 @@ class AudioMapperGUI:
 
     def add_marker_by_type(self, marker_type):
         """Add marker of specific type at current position and open editor"""
-        if not self.video_loaded:
+        if not self.video_player.is_video_loaded():
             messagebox.showwarning("No Timeline", "Please load a video or create a blank timeline first")
             return
 
@@ -2916,8 +2767,10 @@ class AudioMapperGUI:
             "prompt_data_snapshot": prompt_data.copy()
         }
 
+        current_time = self.video_player.get_current_time()
+
         marker = {
-            "time_ms": self.current_time_ms,
+            "time_ms": current_time,
             "type": marker_type,
             "name": "",  # Custom marker name (to be filled in editor)
             "prompt_data": prompt_data,
@@ -2943,7 +2796,7 @@ class AudioMapperGUI:
         # Immediately open editor for the new marker
         self.open_marker_editor(self.markers[marker_index], marker_index, on_cancel_callback=on_cancel)
 
-        print(f"✓ Added {marker_type} marker at {self.current_time_ms}ms")
+        print(f"✓ Added {marker_type} marker at {current_time}ms")
 
     def add_marker(self):
         """Legacy add_marker for backward compatibility - defaults to SFX"""
@@ -3609,7 +3462,7 @@ class AudioMapperGUI:
         marker = self.markers[index]
 
         self.seek_to_time(marker["time_ms"])
-        self.timeline_slider.set(self.current_time_ms)
+        self.timeline_slider.set(self.video_player.get_current_time())
         self.redraw_marker_indicators()  # Redraw to show selection highlight
 
     def delete_marker(self):
@@ -3666,8 +3519,9 @@ class AudioMapperGUI:
             canvas_width = 1200
 
         # Calculate time from x position
-        new_time_ms = int((event.x / canvas_width) * self.duration_ms)
-        new_time_ms = max(0, min(new_time_ms, self.duration_ms))  # Clamp to valid range
+        duration = self.video_player.get_duration()
+        new_time_ms = int((event.x / canvas_width) * duration)
+        new_time_ms = max(0, min(new_time_ms, duration))  # Clamp to valid range
 
         # Update marker temporarily (visual feedback only)
         self.dragging_marker["time_ms"] = new_time_ms
@@ -3685,8 +3539,9 @@ class AudioMapperGUI:
         if canvas_width <= 1:
             canvas_width = 1200
 
-        new_time_ms = int((event.x / canvas_width) * self.duration_ms)
-        new_time_ms = max(0, min(new_time_ms, self.duration_ms))
+        duration = self.video_player.get_duration()
+        new_time_ms = int((event.x / canvas_width) * duration)
+        new_time_ms = max(0, min(new_time_ms, duration))
 
         # Get the original time (before we started dragging)
         # We need to find the marker's original position from history
@@ -3720,7 +3575,8 @@ class AudioMapperGUI:
 
         marker = self.markers[self.selected_marker_index]
         old_time_ms = marker["time_ms"]
-        new_time_ms = max(0, min(old_time_ms + delta_ms, self.duration_ms))
+        duration = self.video_player.get_duration()
+        new_time_ms = max(0, min(old_time_ms + delta_ms, duration))
 
         if new_time_ms != old_time_ms:
             # Create and execute move command
@@ -3730,12 +3586,13 @@ class AudioMapperGUI:
 
     def nudge_selected_marker_by_frame(self, delta_frames):
         """Nudge selected marker by exact number of frames"""
-        if not self.video_loaded or not self.video_capture:
+        if not self.video_player.is_video_loaded() or not self.video_player.video_capture:
             print("Frame nudging only works with video loaded")
             return
 
         # Calculate time per frame
-        frame_duration_ms = 1000 / self.fps if self.fps > 0 else 33
+        fps = self.video_player.get_fps()
+        frame_duration_ms = 1000 / fps if fps > 0 else 33
         delta_ms = int(delta_frames * frame_duration_ms)
 
         self.nudge_selected_marker(delta_ms)
@@ -3760,7 +3617,8 @@ class AudioMapperGUI:
         self.waveform_canvas.delete("marker")
         self.filmstrip_canvas.delete("marker")
 
-        if not self.video_loaded or self.duration_ms == 0:
+        duration = self.video_player.get_duration()
+        if not self.video_player.is_video_loaded() or duration == 0:
             return
 
         # Get canvas widths
@@ -3790,8 +3648,8 @@ class AudioMapperGUI:
             is_selected = (i == self.selected_marker_index)
 
             # Calculate x position
-            waveform_x = int((time_ms / self.duration_ms) * waveform_width)
-            filmstrip_x = int((time_ms / self.duration_ms) * filmstrip_width)
+            waveform_x = int((time_ms / duration) * waveform_width)
+            filmstrip_x = int((time_ms / duration) * filmstrip_width)
 
             # Draw on waveform (thicker if selected)
             line_width = 5 if is_selected else 3
@@ -3898,7 +3756,8 @@ class AudioMapperGUI:
                 return
 
             # Check if we have a duration
-            if self.duration_ms <= 0:
+            duration = self.video_player.get_duration()
+            if duration <= 0:
                 messagebox.showerror(
                     "No Timeline",
                     "Create a timeline first (Open Video or Create Blank Timeline)"
@@ -3936,8 +3795,8 @@ class AudioMapperGUI:
                 return
 
             # Create silent base track
-            print(f"Creating silent base track ({self.duration_ms}ms)...")
-            assembled = AudioSegment.silent(duration=self.duration_ms)
+            print(f"Creating silent base track ({duration}ms)...")
+            assembled = AudioSegment.silent(duration=duration)
 
             # Overlay each marker's audio
             print(f"Assembling {len(markers_with_audio)} audio file(s)...")
@@ -4070,9 +3929,8 @@ class AudioMapperGUI:
             self.markers = migrated_markers
 
             # Set duration if provided and no video loaded
-            if duration_ms > 0 and not self.video_loaded:
-                self.duration_ms = duration_ms
-                self.video_loaded = True
+            if duration_ms > 0 and not self.video_player.is_video_loaded():
+                self.video_player.create_blank_timeline(duration_ms / 1000.0)
                 self.update_timeline()
 
             # Update displays
@@ -4111,7 +3969,7 @@ class AudioMapperGUI:
         template = {
             "template_id": self.template_id or "TEMPLATE",
             "template_name": self.template_name or "Untitled",
-            "duration_ms": self.duration_ms,
+            "duration_ms": self.video_player.get_duration(),
             "markers": self.markers
         }
 
