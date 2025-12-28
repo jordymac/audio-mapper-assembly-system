@@ -6,7 +6,7 @@ Tests all three generation functions with real API calls
 
 import sys
 import os
-from elevenlabs_api import generate_sfx, generate_voice, generate_music, test_api_connection
+from services.elevenlabs_api import generate_sfx, generate_voice, generate_music, test_api_connection
 
 
 def main():

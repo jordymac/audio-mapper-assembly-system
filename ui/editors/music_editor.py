@@ -8,7 +8,7 @@ Extracted from PromptEditorWindow as part of Sprint 4.1 refactoring.
 
 import tkinter as tk
 from tkinter import messagebox
-from color_scheme import COLORS
+from config.color_scheme import COLORS
 from ui.editors.music_section_editor import MusicSectionEditorWindow
 
 

@@ -17,7 +17,7 @@ def test_generation_workflow():
     print("\n✓ Test 1: Import modules")
     try:
         from audio_mapper import AudioMapperGUI, GenerateAudioCommand
-        from elevenlabs_api import generate_sfx, generate_voice, generate_music
+        from services.elevenlabs_api import generate_sfx, generate_voice, generate_music
         print("  ✓ All modules imported successfully")
     except ImportError as e:
         print(f"  ✗ Import failed: {e}")

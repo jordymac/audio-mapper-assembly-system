@@ -4,7 +4,7 @@
 import json
 import tempfile
 from pathlib import Path
-from file_handler import FileHandler
+from controllers.file_handler import FileHandler
 
 
 def test_export_and_import():

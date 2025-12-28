@@ -8,7 +8,7 @@ Extracted from audio_mapper.py as part of Sprint 4.1 refactoring.
 
 import tkinter as tk
 from tkinter import ttk, messagebox
-from color_scheme import COLORS
+from config.color_scheme import COLORS
 
 
 class MusicSectionEditorWindow:

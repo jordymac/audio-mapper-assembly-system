@@ -8,6 +8,7 @@ import tkinter as tk
 import numpy as np
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from typing import Optional, Callable
+from config.color_scheme import COLORS
 
 
 class WaveformManager:
@@ -52,8 +53,10 @@ class WaveformManager:
         # Show placeholder
         self._show_placeholder("Audio waveform will appear here")
 
-    def _show_placeholder(self, text: str, color: str = "#666"):
+    def _show_placeholder(self, text: str, color: str = None):
         """Show placeholder text on canvas"""
+        if color is None:
+            color = COLORS.placeholder_text
         self.canvas.delete("waveform_placeholder")
         self.canvas.create_text(
             600, 40,
@@ -81,7 +84,7 @@ class WaveformManager:
 
             if video.audio is None:
                 print("⚠ No audio track found in video")
-                self._show_placeholder("No audio track in video", "#888")
+                self._show_placeholder("No audio track in video", COLORS.disabled_text)
                 video.close()
                 return False
 
@@ -108,7 +111,7 @@ class WaveformManager:
 
         except Exception as e:
             print(f"⚠ Could not extract waveform: {e}")
-            self._show_placeholder("Could not extract audio waveform", "#888")
+            self._show_placeholder("Could not extract audio waveform", COLORS.disabled_text)
             return False
 
     def _calculate_waveform_data(self, audio_array: np.ndarray, target_width: int = 1200):
@@ -182,7 +185,7 @@ class WaveformManager:
             self.canvas.create_line(
                 x, mid_y - height,
                 x, mid_y + height,
-                fill="#00D4FF",
+                fill=COLORS.waveform_color,
                 width=2,
                 tags="waveform"
             )
@@ -191,7 +194,7 @@ class WaveformManager:
         self.canvas.create_line(
             0, mid_y,
             canvas_width, mid_y,
-            fill="#444",
+            fill=COLORS.centerline,
             width=1,
             tags="centerline"
         )
@@ -220,7 +223,7 @@ class WaveformManager:
         self.canvas.create_line(
             x_pos, 0,
             x_pos, self.canvas_height,
-            fill="#FF6B00",
+            fill=COLORS.position_indicator,
             width=2,
             tags="position"
         )

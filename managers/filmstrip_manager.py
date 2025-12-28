@@ -8,6 +8,7 @@ import tkinter as tk
 import cv2
 from PIL import Image, ImageTk
 from typing import Optional, Callable, List
+from config.color_scheme import COLORS
 
 
 class FilmstripManager:
@@ -60,8 +61,10 @@ class FilmstripManager:
         # Show placeholder
         self._show_placeholder("Film strip will appear here")
 
-    def _show_placeholder(self, text: str, color: str = "#666"):
+    def _show_placeholder(self, text: str, color: str = None):
         """Show placeholder text on canvas"""
+        if color is None:
+            color = COLORS.placeholder_text
         self.canvas.delete("filmstrip_placeholder")
         self.canvas.create_text(
             600, 30,
@@ -138,7 +141,7 @@ class FilmstripManager:
 
         except Exception as e:
             print(f"⚠ Could not extract filmstrip: {e}")
-            self._show_placeholder("Could not extract video thumbnails", "#888")
+            self._show_placeholder("Could not extract video thumbnails", COLORS.disabled_text)
             return False
 
     def draw(self):
@@ -174,7 +177,7 @@ class FilmstripManager:
             self.canvas.create_rectangle(
                 x_pos - half_width, y_pos - half_height,
                 x_pos + half_width, y_pos + half_height,
-                outline="#444",
+                outline=COLORS.thumbnail_border,
                 width=1,
                 tags="thumbnail_border"
             )
@@ -203,7 +206,7 @@ class FilmstripManager:
         self.canvas.create_line(
             x_pos, 0,
             x_pos, self.canvas_height,
-            fill="#FF6B00",
+            fill=COLORS.position_indicator,
             width=2,
             tags="position"
         )

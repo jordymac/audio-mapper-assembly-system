@@ -13,11 +13,12 @@ import threading
 from datetime import datetime
 from tkinter import messagebox
 import tkinter as tk
+from config.color_scheme import COLORS, create_colored_button
 from tkinter import ttk
 
 # Import ElevenLabs API functions
 try:
-    from elevenlabs_api import generate_sfx, generate_voice, generate_music
+    from services.elevenlabs_api import generate_sfx, generate_voice, generate_music
 except ImportError:
     print("WARNING: elevenlabs_api.py not found. Audio generation will not work.")
     generate_sfx = None
@@ -86,13 +87,15 @@ class BatchProgressWindow:
         self.status_label.pack(pady=5)
 
         # Cancel button
-        self.cancel_btn = tk.Button(
+        self.cancel_btn = create_colored_button(
             self.window,
             text="Cancel",
             command=self.cancel,
-            bg="#F44336",
-            fg="white",
-            font=("Arial", 10, "bold")
+            bg_color=COLORS.btn_danger_bg,
+            fg_color=COLORS.btn_danger_fg,
+            font=("Arial", 10, "bold"),
+            width=10,
+            height=1
         )
         self.cancel_btn.pack(pady=10)
 
@@ -243,7 +246,8 @@ class AudioGenerationService:
         try:
             marker = self.gui.markers[marker_index]
 
-            # Determine next version number
+            # Create version when generation starts (not when marker is created)
+            # This ensures version 1 is created on first generation, not before
             next_version = self.gui.add_new_version(marker, prompt_data)
 
             # Build output path
@@ -455,34 +459,37 @@ class AudioGenerationService:
         button_frame = tk.Frame(type_dialog)
         button_frame.pack(pady=10)
 
-        tk.Button(
+        create_colored_button(
             button_frame,
             text="SFX",
             command=lambda: [selected_type.set("sfx"), type_dialog.destroy()],
-            bg="#F44336",
-            fg="white",
+            bg_color=COLORS.sfx_bg,
+            fg_color=COLORS.sfx_fg,
             font=("Arial", 10, "bold"),
-            width=15
+            width=15,
+            height=1
         ).pack(pady=5)
 
-        tk.Button(
+        create_colored_button(
             button_frame,
             text="Voice",
             command=lambda: [selected_type.set("voice"), type_dialog.destroy()],
-            bg="#4CAF50",
-            fg="white",
+            bg_color=COLORS.voice_bg,
+            fg_color=COLORS.voice_fg,
             font=("Arial", 10, "bold"),
-            width=15
+            width=15,
+            height=1
         ).pack(pady=5)
 
-        tk.Button(
+        create_colored_button(
             button_frame,
             text="Music",
             command=lambda: [selected_type.set("music"), type_dialog.destroy()],
-            bg="#2196F3",
-            fg="white",
+            bg_color=COLORS.music_bg,
+            fg_color=COLORS.music_fg,
             font=("Arial", 10, "bold"),
-            width=15
+            width=15,
+            height=1
         ).pack(pady=5)
 
         # Wait for selection

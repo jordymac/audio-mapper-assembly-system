@@ -9,7 +9,7 @@ Extracted from audio_mapper.py as part of Sprint 4.1 refactoring.
 import tkinter as tk
 from tkinter import ttk, messagebox
 import os
-from config.color_scheme import COLORS
+from config.color_scheme import COLORS, create_colored_button
 from ui.editors.sfx_editor import SfxEditor
 from ui.editors.voice_editor import VoiceEditor
 from ui.editors.music_editor import MusicEditor
@@ -137,26 +137,28 @@ class PromptEditorWindow:
         self.version_dropdown.bind("<<ComboboxSelected>>", self.on_version_selected)
 
         # Rollback button
-        self.rollback_btn = tk.Button(
+        self.rollback_btn = create_colored_button(
             controls_frame,
             text="Rollback",
             command=self.on_rollback_version,
+            bg_color=COLORS.btn_warning_bg,
+            fg_color=COLORS.btn_warning_fg,
             font=("Arial", 9),
-            bg=COLORS.btn_warning_bg,
-            fg=COLORS.btn_warning_fg,
-            width=10
+            width=10,
+            height=1
         )
         self.rollback_btn.pack(side=tk.LEFT, padx=5)
 
         # Play button
-        self.play_version_btn = tk.Button(
+        self.play_version_btn = create_colored_button(
             controls_frame,
             text="▶ Play",
             command=self.on_play_version,
+            bg_color=COLORS.btn_success_bg,
+            fg_color=COLORS.btn_success_fg,
             font=("Arial", 9),
-            bg=COLORS.btn_success_bg,
-            fg=COLORS.btn_success_fg,
-            width=10
+            width=10,
+            height=1
         )
         self.play_version_btn.pack(side=tk.LEFT, padx=5)
 
@@ -403,13 +405,14 @@ class PromptEditorWindow:
             font=("Arial", 10)
         ).pack(side=tk.RIGHT, padx=5)
 
-        tk.Button(
+        create_colored_button(
             button_frame,
             text="Save",
             command=self.on_save,
-            bg=COLORS.btn_primary_bg,
-            fg=COLORS.btn_primary_fg,
+            bg_color=COLORS.btn_primary_bg,
+            fg_color=COLORS.btn_primary_fg,
             width=12,
+            height=1,
             font=("Arial", 10, "bold")
         ).pack(side=tk.RIGHT, padx=5)
 

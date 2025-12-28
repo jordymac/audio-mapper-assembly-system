@@ -69,6 +69,16 @@ class ColorScheme:
             self.warning_bg = "#E65100"           # Warning background (dark orange)
             self.selection_bg = "#1565C0"         # Selection highlight
 
+            # Waveform/Timeline colors
+            self.waveform_color = "#00D4FF"       # Waveform bars (cyan)
+            self.position_indicator = "#FF6B00"   # Timeline position (orange)
+            self.centerline = "#404040"           # Waveform center line
+            self.thumbnail_border = "#404040"     # Filmstrip borders
+
+            # Placeholder/disabled colors
+            self.placeholder_text = "#666666"     # Placeholder text
+            self.disabled_text = "#888888"        # Disabled text
+
         else:
             # Light Mode Colors
             self.bg_primary = "#FFFFFF"           # Main background
@@ -111,6 +121,65 @@ class ColorScheme:
             self.warning_bg = "#FFFFE0"           # Warning background (light yellow)
             self.selection_bg = "#BBDEFB"         # Selection highlight
 
+            # Waveform/Timeline colors
+            self.waveform_color = "#00A8CC"       # Waveform bars (darker cyan for light mode)
+            self.position_indicator = "#FF6B00"   # Timeline position (orange)
+            self.centerline = "#CCCCCC"           # Waveform center line
+            self.thumbnail_border = "#CCCCCC"     # Filmstrip borders
+
+            # Placeholder/disabled colors
+            self.placeholder_text = "#666666"     # Placeholder text
+            self.disabled_text = "#999999"        # Disabled text
+
 
 # Global color scheme instance
 COLORS = ColorScheme()
+
+
+def create_colored_button(parent, text, command, bg_color, fg_color, width=10, height=2, font=("Arial", 10)):
+    """
+    Create a colored button that works on macOS Big Sur+
+
+    Uses Frame + Label to bypass macOS native button restrictions
+    """
+    import tkinter as tk
+
+    # Create frame to hold the button
+    frame = tk.Frame(parent, bg=bg_color, relief=tk.RAISED, bd=2)
+
+    # Create label that looks like button text
+    label = tk.Label(
+        frame,
+        text=text,
+        bg=bg_color,
+        fg=fg_color,
+        font=font,
+        width=width,
+        height=height,
+        cursor="hand2"
+    )
+    label.pack(padx=2, pady=2)
+
+    # Bind click events
+    def on_click(event):
+        frame.config(relief=tk.SUNKEN)
+        frame.after(100, lambda: frame.config(relief=tk.RAISED))
+        if command:
+            command()
+
+    # Bind to both frame and label
+    frame.bind("<Button-1>", on_click)
+    label.bind("<Button-1>", on_click)
+
+    # Hover effect
+    def on_enter(event):
+        # Slightly darker on hover
+        label.config(cursor="hand2")
+
+    def on_leave(event):
+        label.config(cursor="")
+
+    label.bind("<Enter>", on_enter)
+    label.bind("<Leave>", on_leave)
+
+    return frame

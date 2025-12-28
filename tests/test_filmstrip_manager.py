@@ -2,7 +2,7 @@
 """Test filmstrip manager extraction"""
 
 import tkinter as tk
-from filmstrip_manager import FilmstripManager
+from managers.filmstrip_manager import FilmstripManager
 
 
 def test_filmstrip_init():

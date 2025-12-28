@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Quick test to verify models.py works correctly"""
 
-from models import (
+from core.models import (
     Marker, AudioVersion, MarkerType, MarkerStatus,
     SFXPromptData, VoicePromptData, MusicPromptData, MusicSection,
     create_marker

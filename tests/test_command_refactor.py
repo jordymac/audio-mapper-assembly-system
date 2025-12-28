@@ -5,9 +5,9 @@ Tests all command types with MarkerRepository
 """
 
 import copy
-from marker_repository import MarkerRepository
-from commands import AddMarkerCommand, DeleteMarkerCommand, EditMarkerCommand, MoveMarkerCommand
-from history_manager import HistoryManager
+from core.marker_repository import MarkerRepository
+from core.commands import AddMarkerCommand, DeleteMarkerCommand, EditMarkerCommand, MoveMarkerCommand
+from managers.history_manager import HistoryManager
 
 
 def create_test_marker(time_ms=0, marker_type="sfx", name="Test Marker"):

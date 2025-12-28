@@ -3,7 +3,7 @@
 
 import tkinter as tk
 import numpy as np
-from waveform_manager import WaveformManager
+from managers.waveform_manager import WaveformManager
 
 
 def test_waveform_manager_init():

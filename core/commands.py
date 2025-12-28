@@ -8,7 +8,7 @@ and no longer directly reference GUI components.
 """
 
 import copy
-from marker_repository import MarkerRepository
+from core.marker_repository import MarkerRepository
 
 
 class Command:

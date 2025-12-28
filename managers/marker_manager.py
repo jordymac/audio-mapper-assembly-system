@@ -9,10 +9,10 @@ Extracted from AudioMapperGUI as part of Sprint 3.3 refactoring.
 
 from datetime import datetime
 from typing import Dict, Any, Optional, Callable, List
-from marker_repository import MarkerRepository
-from history_manager import HistoryManager
-from version_manager import MarkerVersionManager
-from commands import AddMarkerCommand, EditMarkerCommand, DeleteMarkerCommand, MoveMarkerCommand
+from core.marker_repository import MarkerRepository
+from managers.history_manager import HistoryManager
+from managers.version_manager import MarkerVersionManager
+from core.commands import AddMarkerCommand, EditMarkerCommand, DeleteMarkerCommand, MoveMarkerCommand
 
 
 class MarkerManager:
@@ -63,9 +63,9 @@ class MarkerManager:
         Create a new marker with proper initialization.
 
         Creates marker with:
-        - Asset slot and filename
-        - Initial version object
+        - Asset slot and base filename
         - Empty but valid prompt_data structure
+        - NO versions yet (versions created on first generation)
 
         Args:
             marker_type: Type of marker ("sfx", "voice", "music", etc.)
@@ -76,25 +76,15 @@ class MarkerManager:
         if not self.is_video_loaded():
             return None
 
-        # Generate asset slot and filename
+        # Generate asset slot and base filename (version will be added during generation)
         prefix = self._type_prefix_map.get(marker_type, "ASSET")
         markers = self.marker_repository.markers
         marker_count = len([m for m in markers if m["type"] == marker_type])
         asset_slot = f"{marker_type}_{marker_count}"
-        asset_file = f"{prefix}_{marker_count:05d}_v1.mp3"
+        asset_file = f"{prefix}_{marker_count:05d}.mp3"  # Base filename, no version yet
 
         # Create empty but valid prompt_data structure
         prompt_data = MarkerVersionManager.create_default_prompt_data(marker_type)
-
-        # Create initial version object
-        version_obj = {
-            "version": 1,
-            "asset_file": asset_file,
-            "asset_id": None,
-            "created_at": datetime.now().isoformat(),
-            "status": "not yet generated",
-            "prompt_data_snapshot": prompt_data.copy()
-        }
 
         current_time = self.get_current_time()
 
@@ -104,11 +94,11 @@ class MarkerManager:
             "name": "",  # Custom marker name (to be filled in editor)
             "prompt_data": prompt_data,
             "asset_slot": asset_slot,
-            "asset_file": asset_file,
+            "asset_file": asset_file,  # Base filename
             "asset_id": None,
             "status": "not yet generated",
-            "current_version": 1,
-            "versions": [version_obj]
+            "current_version": 0,  # 0 indicates no versions yet
+            "versions": []  # Empty - versions created when audio is generated
         }
 
         return marker

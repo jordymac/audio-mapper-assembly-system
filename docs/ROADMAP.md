@@ -1,6 +1,6 @@
 # Audio Mapper & Assembly System - Development Roadmap
 
-**Last Updated**: 2025-12-28
+**Last Updated**: 2025-12-29
 
 This document outlines planned improvements, known issues, and feature ideas for the Audio Mapper & Assembly System.
 
@@ -63,28 +63,33 @@ This document outlines planned improvements, known issues, and feature ideas for
 
 ## 🎨 UI/UX Issues
 
-### 3. Color Scheme Inconsistencies
-**Known Issues**:
-- [ ] Some UI elements don't respect dark mode
-- [ ] Button colors inconsistent across dialogs
-- [ ] Text readability issues in certain backgrounds
-- [ ] Hover states missing on some interactive elements
+### 3. Button Styling & UI Consistency ✅ COMPLETE (2025-12-29)
+**Completed Work**:
+- ✅ All marker type buttons styled consistently:
+  - SFX: Red (#F44336) with black text
+  - Music: Blue (#2196F3) with black text
+  - Voice: Green (#4CAF50) with black text
+- ✅ All Save buttons: Blue (#2196F3) with black text
+- ✅ Text input fields: Light gray background (#F5F5F5)
+- ✅ Proper button relief and borders (raised, 2px)
+- ✅ Consistent styling across all editor windows
 
-**Areas to Review**:
-- [ ] All Tkinter widgets (Entry, Text, Listbox, Canvas)
-- [ ] Pop-up editor windows (PromptEditorWindow, MusicSectionEditorWindow)
-- [ ] BatchProgressWindow styling
-- [ ] Marker indicators on timeline
+**Remaining UI Tasks**:
+- [ ] Some UI elements don't respect dark mode
+- [ ] Hover states missing on some interactive elements
+- [ ] Marker indicators on timeline styling
 - [ ] Tooltip backgrounds
 
-**Strategy**:
+**Strategy for Remaining Work**:
 - Audit all widgets for COLORS usage
 - Create widget factory functions that auto-apply theme
 - Test in both light and dark modes
 
 **Files Affected**:
-- `color_scheme.py` - May need additional color definitions
-- `audio_mapper.py` - All UI construction code
+- `ui/editors/prompt_editor.py` - Editor button styling ✅
+- `ui/editors/music_section_editor.py` - Section editor styling ✅
+- `audio_mapper.py` - Main window buttons ✅
+- `color_scheme.py` - May need additional color definitions for dark mode
 
 ---
 
@@ -397,9 +402,8 @@ Bars: [32]
 ## 🎯 Priority Matrix
 
 ### High Priority (Do Next)
-1. **Versioning Logic Bug** - Breaks expected workflow
-2. **Music Assembly Timing** - Core functionality unclear
-3. **Color Scheme Fixes** - Affects usability
+1. **Music Assembly Timing** - Core functionality unclear
+2. **Remaining UI/UX Polish** - Dark mode support, hover states
 
 ### Medium Priority
 4. **BPM & Bar-Based Sections** - Quality of life improvement
@@ -422,9 +426,10 @@ Bars: [32]
 When starting next work session, tackle in this order:
 
 **Immediate (This Week)**:
-- [ ] Fix versioning bug (Issue #1)
+- [x] ~~Fix versioning bug (Issue #1)~~ ✅ COMPLETE
+- [x] ~~Button styling and UI consistency (Issue #3)~~ ✅ COMPLETE
 - [ ] Define music assembly timing behavior (Issue #2)
-- [ ] Audit and fix color scheme issues (Issue #3)
+- [ ] Complete remaining UI polish (dark mode, hover states)
 
 **Short Term (Next 2 Weeks)**:
 - [ ] Design + implement BPM/bar input (Issue #4)

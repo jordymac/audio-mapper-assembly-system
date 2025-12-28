@@ -5,6 +5,7 @@ Displays helpful tooltips when hovering over widgets
 """
 
 import tkinter as tk
+from config.color_scheme import COLORS
 
 
 class ToolTip:
@@ -31,8 +32,8 @@ class ToolTip:
         label = tk.Label(
             self.tooltip,
             text=self.text,
-            background="#FFFFE0",
-            foreground="black",
+            background=COLORS.warning_bg,
+            foreground=COLORS.fg_primary,
             relief=tk.SOLID,
             borderwidth=1,
             font=("Arial", 9),

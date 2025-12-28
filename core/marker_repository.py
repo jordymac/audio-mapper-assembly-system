@@ -6,7 +6,7 @@ Provides CRUD operations without GUI coupling
 
 import copy
 from typing import List, Optional, Callable
-from models import Marker
+from core.models import Marker
 
 
 class MarkerRepository:

@@ -31,344 +31,29 @@ except ImportError:
     exit(1)
 
 # Import extracted modules
-from color_scheme import COLORS
-from commands import (
+from config.color_scheme import COLORS, create_colored_button
+from core.commands import (
     AddMarkerCommand,
     DeleteMarkerCommand,
     MoveMarkerCommand,
     EditMarkerCommand,
     GenerateAudioCommand
 )
-from history_manager import HistoryManager
-from tooltip import ToolTip
-from models import Marker, AudioVersion, MarkerType, MarkerStatus, create_marker
-from waveform_manager import WaveformManager
-from filmstrip_manager import FilmstripManager
-from file_handler import FileHandler
-from video_player_controller import VideoPlayerController
-from version_manager import MarkerVersionManager
-from keyboard_manager import KeyboardShortcutManager
-from marker_selection_manager import MarkerSelectionManager
-from marker_manager import MarkerManager
-from audio_service import AudioGenerationService
+from core.models import Marker, AudioVersion, MarkerType, MarkerStatus, create_marker
+from managers.history_manager import HistoryManager
+from managers.waveform_manager import WaveformManager
+from managers.filmstrip_manager import FilmstripManager
+from managers.version_manager import MarkerVersionManager
+from managers.keyboard_manager import KeyboardShortcutManager
+from managers.marker_selection_manager import MarkerSelectionManager
+from managers.marker_manager import MarkerManager
+from controllers.file_handler import FileHandler
+from controllers.video_player_controller import VideoPlayerController
+from services.audio_service import AudioGenerationService
+from services.audio_player import AudioPlayer
+from ui.components.tooltip import ToolTip
+from ui.components.marker_row import MarkerRow
 from ui.editors.prompt_editor import PromptEditorWindow
-
-
-# ============================================================================
-# AUDIO PLAYER - Simple audio playback for generated files
-# ============================================================================
-
-import pygame
-import os
-from pathlib import Path
-
-# DON'T initialize pygame here - it conflicts with Tkinter on macOS
-# pygame.init() will be called in AudioPlayer.__init__ instead
-
-class AudioPlayer:
-    """
-    Simple audio player for playing generated marker audio files
-
-    Uses pygame.mixer for reliable cross-platform playback
-    """
-
-    def __init__(self):
-        """Initialize the audio player"""
-        # Initialize pygame mixer
-        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
-
-        self.current_sound = None
-        self.current_marker_index = None
-        self.is_playing = False
-
-        print("✓ AudioPlayer initialized")
-
-    def play_audio_file(self, file_path, marker_index=None):
-        """
-        Play an audio file
-
-        Args:
-            file_path: Path to audio file (MP3, WAV, OGG)
-            marker_index: Optional marker index for tracking
-
-        Returns:
-            True if playback started, False if file not found or error
-        """
-        # Stop any currently playing audio
-        self.stop_audio()
-
-        # Check if file exists
-        if not os.path.exists(file_path):
-            print(f"✗ Audio file not found: {file_path}")
-            return False
-
-        try:
-            # Load and play the audio file
-            self.current_sound = pygame.mixer.Sound(file_path)
-            self.current_sound.play()
-            self.current_marker_index = marker_index
-            self.is_playing = True
-
-            print(f"▶ Playing: {Path(file_path).name}")
-            return True
-
-        except Exception as e:
-            print(f"✗ Error playing audio: {e}")
-            self.current_sound = None
-            self.is_playing = False
-            return False
-
-    def stop_audio(self):
-        """Stop currently playing audio"""
-        if self.current_sound is not None:
-            self.current_sound.stop()
-            print(f"⏸ Stopped audio")
-
-        self.current_sound = None
-        self.current_marker_index = None
-        self.is_playing = False
-
-    def is_playing_marker(self, marker_index):
-        """
-        Check if a specific marker's audio is currently playing
-
-        Args:
-            marker_index: Index to check
-
-        Returns:
-            True if this marker is playing
-        """
-        return self.is_playing and self.current_marker_index == marker_index
-
-    def get_playing_status(self):
-        """
-        Get current playback status
-
-        Returns:
-            Tuple of (is_playing, marker_index)
-        """
-        # Update is_playing status based on pygame mixer
-        if self.current_sound is not None:
-            # Check if sound is actually playing
-            if not pygame.mixer.get_busy():
-                # Sound finished playing
-                self.is_playing = False
-                self.current_marker_index = None
-                self.current_sound = None
-
-        return (self.is_playing, self.current_marker_index)
-
-
-# ============================================================================
-# MARKER ROW - Custom row widget for marker list
-# ============================================================================
-
-class MarkerRow:
-    """
-    Custom widget representing a single marker row with interactive controls
-
-    Layout: [▶] [🔄] 0:00.150 | SFX | Marker Name | ✓ v1
-    """
-
-    def __init__(self, parent, marker, marker_index, gui_ref):
-        """
-        Initialize a marker row
-
-        Args:
-            parent: Parent frame/canvas to pack into
-            marker: Marker data dict
-            marker_index: Index in markers list
-            gui_ref: Reference to main AudioMapperGUI instance
-        """
-        self.marker = marker
-        self.marker_index = marker_index
-        self.gui = gui_ref
-        self.is_selected = False
-
-        # Main row frame
-        self.frame = tk.Frame(parent, bg=COLORS.bg_secondary, relief=tk.RAISED, bd=1)
-        self.frame.pack(fill=tk.X, padx=2, pady=1)
-
-        # Row click handling (for selection)
-        self.frame.bind("<Button-1>", self.on_row_click)
-        self.frame.bind("<Double-Button-1>", self.on_row_double_click)
-
-        # Create row contents
-        self.create_widgets()
-
-    def create_widgets(self):
-        """Build the row UI components"""
-        # Play button
-        self.play_btn = tk.Button(
-            self.frame,
-            text="▶",
-            width=3,
-            height=1,
-            command=self.on_play_click,
-            bg=COLORS.info_bg,
-            fg=COLORS.fg_primary,
-            font=("Arial", 10),
-            relief=tk.RAISED,
-            bd=1
-        )
-        self.play_btn.pack(side=tk.LEFT, padx=(5, 2), pady=2)
-        ToolTip(self.play_btn, "Play current version (P)")
-
-        # Generate button
-        self.generate_btn = tk.Button(
-            self.frame,
-            text="🔄",
-            width=3,
-            height=1,
-            command=self.on_generate_click,
-            bg=COLORS.success_bg,
-            fg=COLORS.fg_primary,
-            font=("Arial", 10),
-            relief=tk.RAISED,
-            bd=1
-        )
-        self.generate_btn.pack(side=tk.LEFT, padx=2, pady=2)
-        ToolTip(self.generate_btn, "Generate/Regenerate audio (G/R)")
-
-        # Time label
-        time_str = self.format_time(self.marker["time_ms"])
-        time_label = tk.Label(
-            self.frame,
-            text=time_str,
-            width=10,
-            font=("Courier", 10),
-            bg=COLORS.bg_secondary,
-            fg=COLORS.fg_primary,
-            anchor=tk.W
-        )
-        time_label.pack(side=tk.LEFT, padx=5)
-        time_label.bind("<Button-1>", self.on_row_click)
-        time_label.bind("<Double-Button-1>", self.on_row_double_click)
-
-        # Type label
-        marker_type = self.marker["type"].upper()
-        type_bg, type_fg = self.get_type_color(self.marker["type"])
-        type_label = tk.Label(
-            self.frame,
-            text=marker_type,
-            width=8,
-            font=("Arial", 10, "bold"),
-            bg=type_bg,
-            fg=type_fg,
-            anchor=tk.W
-        )
-        type_label.pack(side=tk.LEFT, padx=2)
-        type_label.bind("<Button-1>", self.on_row_click)
-        type_label.bind("<Double-Button-1>", self.on_row_double_click)
-
-        # Name label
-        marker_name = self.marker.get("name", "")
-        name_display = marker_name if marker_name else "(unnamed)"
-        name_label = tk.Label(
-            self.frame,
-            text=name_display,
-            width=30,
-            font=("Arial", 10),
-            bg=COLORS.bg_secondary,
-            fg=COLORS.fg_primary,
-            anchor=tk.W
-        )
-        name_label.pack(side=tk.LEFT, padx=5)
-        name_label.bind("<Button-1>", self.on_row_click)
-        name_label.bind("<Double-Button-1>", self.on_row_double_click)
-
-        # Status icon + Version badge
-        status_icon = self.get_status_icon(self.marker.get("status", "not yet generated"))
-        current_version = self.marker.get("current_version", 1)
-        status_version_text = f"{status_icon} v{current_version}"
-
-        status_label = tk.Label(
-            self.frame,
-            text=status_version_text,
-            width=8,
-            font=("Arial", 10),
-            bg=COLORS.bg_secondary,
-            fg=COLORS.fg_primary,
-            anchor=tk.W
-        )
-        status_label.pack(side=tk.LEFT, padx=5)
-        status_label.bind("<Button-1>", self.on_row_click)
-        status_label.bind("<Double-Button-1>", self.on_row_double_click)
-
-        # Add tooltip for status icon
-        status_tooltips = {
-            "not_yet_generated": "⭕ Not yet generated",
-            "generating": "⏳ Generating...",
-            "generated": "✓ Generated successfully",
-            "failed": "⚠️ Generation failed"
-        }
-        current_status = self.gui.get_current_version_data(self.marker)
-        if current_status:
-            status_key = current_status.get("status", "not_yet_generated")
-            tooltip_text = status_tooltips.get(status_key, "Unknown status")
-            ToolTip(status_label, tooltip_text)
-
-    def format_time(self, ms):
-        """Format milliseconds as M:SS.mmm"""
-        total_seconds = ms / 1000
-        minutes = int(total_seconds // 60)
-        seconds = int(total_seconds % 60)
-        milliseconds = int(ms % 1000)
-        return f"{minutes}:{seconds:02d}.{milliseconds:03d}"
-
-    def get_type_color(self, marker_type):
-        """Get background and foreground colors for marker type"""
-        type_colors = {
-            "sfx": (COLORS.sfx_bg, COLORS.sfx_fg),
-            "music": (COLORS.music_bg, COLORS.music_fg),
-            "voice": (COLORS.voice_bg, COLORS.voice_fg)
-        }
-        return type_colors.get(marker_type, (COLORS.bg_tertiary, COLORS.fg_primary))
-
-    def get_status_icon(self, status):
-        """Get icon for marker status"""
-        status_icons = {
-            "not yet generated": "⭕",
-            "generating": "⏳",
-            "generated": "✓",
-            "failed": "⚠️"
-        }
-        return status_icons.get(status, "⭕")
-
-    def on_row_click(self, event=None):
-        """Handle row click - select this marker"""
-        self.gui.marker_selection_manager.select_marker_row(self.marker_index)
-
-    def on_row_double_click(self, event=None):
-        """Handle double-click - edit marker"""
-        self.gui.open_marker_editor(self.marker, self.marker_index)
-
-    def on_play_click(self):
-        """Handle play button click"""
-        print(f"▶ Play marker {self.marker_index}: {self.marker.get('name', '(unnamed)')}")
-        # Stub for now - will implement in Checkpoint 3
-        self.gui.play_marker_audio(self.marker_index)
-
-    def on_generate_click(self):
-        """Handle generate button click"""
-        print(f"🔄 Generate marker {self.marker_index}: {self.marker.get('name', '(unnamed)')}")
-        # Stub for now - will implement in Checkpoint 5
-        self.gui.generate_marker_audio(self.marker_index)
-
-    def set_selected(self, selected):
-        """Set selection state and update visual appearance"""
-        self.is_selected = selected
-        if selected:
-            self.frame.config(bg=COLORS.selection_bg, relief=tk.SUNKEN, bd=2)
-        else:
-            self.frame.config(bg=COLORS.bg_secondary, relief=tk.RAISED, bd=1)
-
-    def update_display(self):
-        """Refresh row display (useful when marker data changes)"""
-        # Destroy and recreate widgets
-        for widget in self.frame.winfo_children():
-            widget.destroy()
-        self.create_widgets()
 
 
 class AudioMapperGUI:
@@ -385,7 +70,7 @@ class AudioMapperGUI:
         self.template_name = ""
 
         # Marker repository (decoupled data layer)
-        from marker_repository import MarkerRepository
+        from core.marker_repository import MarkerRepository
         self.marker_repository = MarkerRepository()
 
         # Register UI update callback for when markers change
@@ -534,16 +219,16 @@ class AudioMapperGUI:
 
     def create_filmstrip_display(self):
         """Create film strip visualization canvas"""
-        filmstrip_container = tk.Frame(self.root, bg="#2C2C2C")
+        filmstrip_container = tk.Frame(self.root, bg=COLORS.bg_secondary)
         filmstrip_container.pack(fill=tk.X, padx=10, pady=(5, 0))
 
         # Film strip canvas
         self.filmstrip_canvas = tk.Canvas(
             filmstrip_container,
-            bg="#1E1E1E",
+            bg=COLORS.bg_primary,
             height=self.filmstrip_canvas_height,
             highlightthickness=1,
-            highlightbackground="#444"
+            highlightbackground=COLORS.border
         )
         self.filmstrip_canvas.pack(fill=tk.BOTH, expand=True)
 
@@ -559,16 +244,16 @@ class AudioMapperGUI:
 
     def create_waveform_display(self):
         """Create waveform visualization canvas"""
-        waveform_container = tk.Frame(self.root, bg="#2C2C2C")
+        waveform_container = tk.Frame(self.root, bg=COLORS.bg_secondary)
         waveform_container.pack(fill=tk.X, padx=10, pady=(0, 5))
 
         # Waveform canvas
         self.waveform_canvas = tk.Canvas(
             waveform_container,
-            bg="#1E1E1E",
+            bg=COLORS.bg_primary,
             height=self.waveform_canvas_height,
             highlightthickness=1,
-            highlightbackground="#444"
+            highlightbackground=COLORS.border
         )
         self.waveform_canvas.pack(fill=tk.BOTH, expand=True)
 
@@ -645,43 +330,37 @@ class AudioMapperGUI:
         tk.Label(button_container, text="Add Marker:", font=("Arial", 10)).pack(side=tk.LEFT, padx=(0, 10))
 
         # Three colored buttons for each marker type
-        tk.Button(
+        create_colored_button(
             button_container,
             text="SFX",
             command=lambda: self.add_marker_by_type("sfx"),
-            bg=COLORS.sfx_bg,
-            fg=COLORS.sfx_fg,
+            bg_color=COLORS.sfx_bg,
+            fg_color=COLORS.sfx_fg,
             font=("Arial", 10, "bold"),
             width=10,
-            height=2,
-            relief=tk.RAISED,
-            bd=2
+            height=2
         ).pack(side=tk.LEFT, padx=5)
 
-        tk.Button(
+        create_colored_button(
             button_container,
             text="Music",
             command=lambda: self.add_marker_by_type("music"),
-            bg=COLORS.music_bg,
-            fg=COLORS.music_fg,
+            bg_color=COLORS.music_bg,
+            fg_color=COLORS.music_fg,
             font=("Arial", 10, "bold"),
             width=10,
-            height=2,
-            relief=tk.RAISED,
-            bd=2
+            height=2
         ).pack(side=tk.LEFT, padx=5)
 
-        tk.Button(
+        create_colored_button(
             button_container,
             text="Voice",
             command=lambda: self.add_marker_by_type("voice"),
-            bg=COLORS.voice_bg,
-            fg=COLORS.voice_fg,
+            bg_color=COLORS.voice_bg,
+            fg_color=COLORS.voice_fg,
             font=("Arial", 10, "bold"),
             width=10,
-            height=2,
-            relief=tk.RAISED,
-            bd=2
+            height=2
         ).pack(side=tk.LEFT, padx=5)
 
     def create_marker_list(self):
@@ -726,101 +405,95 @@ class AudioMapperGUI:
         export_container.pack_propagate(False)
 
         # Export button with symbol and text
-        export_btn = tk.Button(
+        export_btn = create_colored_button(
             export_container,
             text="⬇\nExport\nJSON",
             command=self.export_json,
-            bg=COLORS.info_bg,
-            fg=COLORS.fg_primary,
+            bg_color=COLORS.btn_primary_bg,
+            fg_color=COLORS.btn_primary_fg,
             font=("Arial", 9, "bold"),
             width=18,
-            height=4,
-            relief=tk.RAISED,
-            bd=2
+            height=4
         )
         export_btn.pack(pady=(0, 10), fill=tk.X)
 
         # Batch operation buttons - stacked vertically
-        tk.Button(
+        create_colored_button(
             export_container,
             text="🔄 Generate All Missing",
             command=self.batch_generate_missing,
-            bg=COLORS.btn_success_bg,
-            fg=COLORS.btn_success_fg,
+            bg_color=COLORS.btn_success_bg,
+            fg_color=COLORS.btn_success_fg,
             font=("Arial", 8, "bold"),
             width=18,
-            height=2,
-            relief=tk.RAISED,
-            bd=2
+            height=2
         ).pack(pady=2, fill=tk.X)
 
-        tk.Button(
+        create_colored_button(
             export_container,
             text="🔄 Regenerate All",
             command=self.batch_regenerate_all,
-            bg=COLORS.btn_warning_bg,
-            fg=COLORS.btn_warning_fg,
+            bg_color=COLORS.btn_warning_bg,
+            fg_color=COLORS.btn_warning_fg,
             font=("Arial", 8, "bold"),
             width=18,
-            height=2,
-            relief=tk.RAISED,
-            bd=2
+            height=2
         ).pack(pady=2, fill=tk.X)
 
-        tk.Button(
+        create_colored_button(
             export_container,
             text="🔄 Generate Type...",
             command=self.batch_generate_by_type,
-            bg=COLORS.btn_primary_bg,
-            fg=COLORS.btn_primary_fg,
+            bg_color=COLORS.btn_primary_bg,
+            fg_color=COLORS.btn_primary_fg,
             font=("Arial", 8, "bold"),
             width=18,
-            height=2,
-            relief=tk.RAISED,
-            bd=2
+            height=2
         ).pack(pady=2, fill=tk.X)
 
-        tk.Button(
+        create_colored_button(
             export_container,
             text="🎵 Assemble Now",
             command=self.manual_assemble_audio,
-            bg=COLORS.btn_special_bg,
-            fg=COLORS.btn_special_fg,
+            bg_color=COLORS.btn_special_bg,
+            fg_color=COLORS.btn_special_fg,
             font=("Arial", 8, "bold"),
             width=18,
-            height=2,
-            relief=tk.RAISED,
-            bd=2
+            height=2
         ).pack(pady=2, fill=tk.X)
 
         # Control buttons
         button_frame = tk.Frame(list_frame)
         button_frame.pack(fill=tk.X, pady=(5, 0))
 
-        tk.Button(
+        create_colored_button(
             button_frame,
             text="Jump to Marker",
             command=lambda: self.marker_selection_manager.jump_to_marker(),
+            bg_color=COLORS.btn_primary_bg,
+            fg_color=COLORS.btn_primary_fg,
             width=15,
             height=2,
             font=("Arial", 9)
         ).pack(side=tk.LEFT, padx=5)
 
-        tk.Button(
+        create_colored_button(
             button_frame,
             text="Delete Marker",
             command=self.delete_marker,
-            bg=COLORS.btn_danger_bg,
-            fg=COLORS.btn_danger_fg,
+            bg_color=COLORS.btn_danger_bg,
+            fg_color=COLORS.btn_danger_fg,
             width=15,
             height=2,
             font=("Arial", 9)
         ).pack(side=tk.LEFT, padx=5)
 
-        tk.Button(
+        create_colored_button(
             button_frame,
             text="Clear All",
             command=self.clear_all_markers,
+            bg_color=COLORS.bg_secondary,
+            fg_color=COLORS.fg_primary,
             width=15,
             height=2,
             font=("Arial", 9)
@@ -970,7 +643,7 @@ class AudioMapperGUI:
             if self.video_player.create_blank_timeline(duration_var.get()):
                 dialog.destroy()
 
-        tk.Button(dialog, text="Create", command=create, bg="#4CAF50", fg="white", padx=20).pack(pady=10)
+        create_colored_button(dialog, text="Create", command=create, bg_color=COLORS.btn_success_bg, fg_color=COLORS.btn_success_fg, font=("Arial", 10)).pack(pady=10)
 
     def prompt_template_info(self):
         """Prompt user for template ID and name"""
@@ -993,7 +666,7 @@ class AudioMapperGUI:
             self.template_name = name_var.get()
             dialog.destroy()
 
-        tk.Button(dialog, text="OK", command=save, bg="#4CAF50", fg="white", padx=30).pack(pady=15)
+        create_colored_button(dialog, text="OK", command=save, bg_color=COLORS.btn_success_bg, fg_color=COLORS.btn_success_fg, font=("Arial", 10)).pack(pady=15)
 
     def seek_to_time(self, time_ms):
         """Seek to specific time - delegates to VideoPlayerController"""
@@ -1251,10 +924,10 @@ class AudioMapperGUI:
 
         # Marker colors by type
         marker_colors = {
-            "music": "#2196F3",      # Blue
-            "sfx": "#F44336",        # Red
-            "voice": "#4CAF50",      # Green
-            "music_control": "#9C27B0"  # Purple
+            "music": COLORS.music_bg,
+            "sfx": COLORS.sfx_bg,
+            "voice": COLORS.voice_bg,
+            "music_control": COLORS.btn_special_bg
         }
 
         # Draw each marker
