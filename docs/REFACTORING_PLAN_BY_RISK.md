@@ -165,22 +165,22 @@ AudioMapperGUI is a **2,665-line GOD CLASS** that needs to be broken down into f
 ### Sprint 2: Controllers (Medium Risk)
 5. ✅ Extract video controller
 6. ✅ Extract version manager
-7. ✅ Decouple commands from GUI
-8. ✅ Extract keyboard manager
+7. ⬜ Decouple commands from GUI
+8. ⬜ Extract keyboard manager
 
 **Goal**: Reduce AudioMapperGUI by ~800 lines, isolate business logic
 
 ### Sprint 3: Core Services (High Risk)
-9. ✅ Extract audio generator service
-10. ✅ Extract marker manager
+9. ⬜ Extract audio generator service
+10. ⬜ Extract marker manager
 
 **Goal**: Reduce AudioMapperGUI by ~1,000 lines, separate concerns
 
 ### Sprint 4: Integration (Very High Risk)
-11. ✅ Refactor AudioMapperGUI to coordinator
-12. ✅ Add comprehensive tests
-13. ✅ Performance optimization
-14. ✅ Documentation
+11. ⬜ Refactor AudioMapperGUI to coordinator
+12. ⬜ Add comprehensive tests
+13. ⬜ Performance optimization
+14. ⬜ Documentation
 
 **Goal**: Clean, maintainable architecture
 
@@ -236,4 +236,15 @@ AudioMapperGUI is a **2,665-line GOD CLASS** that needs to be broken down into f
 
 ## Current Status
 - ✅ Phase 0: Extracted color_scheme, commands, history_manager, tooltip
-- 🔄 Ready to start: Sprint 1 (Low Risk refactoring)
+- ✅ Sprint 1 (Low Risk): ALL COMPLETE
+  - ✅ models.py
+  - ✅ waveform_manager.py
+  - ✅ filmstrip_manager.py
+  - ✅ file_handler.py
+- 🔄 Sprint 2 (Medium Risk): IN PROGRESS (2/4 complete)
+  - ✅ video_player_controller.py
+  - ✅ version_manager.py
+  - ⬜ Decouple commands from GUI (next)
+  - ⬜ Extract keyboard manager
+- ⬜ Sprint 3 (High Risk): Not started
+- ⬜ Sprint 4 (Integration): Not started
