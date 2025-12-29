@@ -225,6 +225,9 @@ class AudioGenerationService:
         # Update UI to show generating status (⏳)
         self.gui.update_marker_list()
 
+        # Show progress bar at 0%
+        self.gui.show_marker_progress(marker_index)
+
         # Start generation in background thread
         thread = threading.Thread(
             target=self._generate_audio_background,
@@ -244,6 +247,9 @@ class AudioGenerationService:
             old_marker_state: Marker state before generation (for undo)
         """
         try:
+            # Update progress: 10% - Starting
+            self.gui.root.after(0, lambda: self.gui.update_marker_progress(marker_index, 10))
+
             marker = self.gui.markers[marker_index]
 
             # Create version when generation starts (not when marker is created)
@@ -258,12 +264,17 @@ class AudioGenerationService:
             # Ensure directory exists
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
+            # Update progress: 30% - Prepared, about to call API
+            self.gui.root.after(0, lambda: self.gui.update_marker_progress(marker_index, 30))
+
             # Call appropriate API function
             result = None
             if marker_type == 'sfx':
                 description = prompt_data.get('description', '')
                 if not description:
                     raise ValueError("SFX description is required")
+                # Update progress: 50% - Calling API
+                self.gui.root.after(0, lambda: self.gui.update_marker_progress(marker_index, 50))
                 result = generate_sfx(description=description, output_path=output_path)
 
             elif marker_type == 'voice':
@@ -271,6 +282,8 @@ class AudioGenerationService:
                 text = prompt_data.get('text', '')
                 if not text:
                     raise ValueError("Voice text is required")
+                # Update progress: 50% - Calling API
+                self.gui.root.after(0, lambda: self.gui.update_marker_progress(marker_index, 50))
                 result = generate_voice(voice_profile=voice_profile, text=text, output_path=output_path)
 
             elif marker_type == 'music':
@@ -279,12 +292,17 @@ class AudioGenerationService:
                 sections = prompt_data.get('sections', [])
                 if not positive_styles:
                     raise ValueError("Music requires at least one positive style")
+                # Update progress: 50% - Calling API
+                self.gui.root.after(0, lambda: self.gui.update_marker_progress(marker_index, 50))
                 result = generate_music(
                     positive_styles=positive_styles,
                     negative_styles=negative_styles,
                     sections=sections,
                     output_path=output_path
                 )
+
+            # Update progress: 90% - API call complete
+            self.gui.root.after(0, lambda: self.gui.update_marker_progress(marker_index, 90))
 
             # Check if generation succeeded
             if result and result.get('success'):
@@ -315,7 +333,10 @@ class AudioGenerationService:
             marker_index: Index of marker
             old_marker_state: State before generation (for undo)
         """
-        from commands import GenerateAudioCommand
+        from core.commands import GenerateAudioCommand
+
+        # Update progress: 100% - Complete
+        self.gui.update_marker_progress(marker_index, 100)
 
         # Create undo command
         command = GenerateAudioCommand(self.gui.marker_repository, marker_index, old_marker_state)
@@ -324,6 +345,9 @@ class AudioGenerationService:
 
         # Update UI
         self.gui.update_marker_list()
+
+        # Hide progress bar after a short delay
+        self.gui.root.after(500, lambda: self.gui.hide_marker_progress(marker_index))
 
         # Show success message
         marker = self.gui.markers[marker_index]
@@ -334,6 +358,9 @@ class AudioGenerationService:
             f"Marker: {marker_name}\n"
             f"Version: {marker.get('current_version', 1)}"
         )
+
+        # Auto-play the generated audio
+        self.gui.root.after(100, lambda: self.gui.play_marker_audio(marker_index))
 
         # Trigger auto-assembly if enabled
         self.auto_assemble_audio()
@@ -351,6 +378,9 @@ class AudioGenerationService:
         current_version_data = self.gui.get_current_version_data(marker)
         if current_version_data:
             current_version_data['status'] = 'failed'
+
+        # Hide progress bar
+        self.gui.hide_marker_progress(marker_index)
 
         # Update UI
         self.gui.update_marker_list()

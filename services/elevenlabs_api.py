@@ -38,7 +38,18 @@ def generate_sfx(description: str, output_path: str = None) -> dict:
         }
     """
     try:
-        print(f"🔄 Generating SFX: {description[:50]}...")
+        print("\n" + "="*70)
+        print("🔊 SFX GENERATION REQUEST")
+        print("="*70)
+        print(f"\n📋 Description: \"{description}\"")
+        print(f"\n📡 API Call:")
+        print(f"  Method: client.text_to_sound_effects.convert()")
+        print(f"  Params:")
+        print(f"    text: \"{description}\"")
+        print(f"    duration_seconds: None (auto-determine)")
+        print(f"    prompt_influence: 0.3")
+        print("="*70)
+        print(f"🔄 Sending request to ElevenLabs...")
 
         # Generate sound effect
         # Note: ElevenLabs sound effects API
@@ -85,10 +96,11 @@ def generate_sfx(description: str, output_path: str = None) -> dict:
 
 def generate_voice(voice_profile: str, text: str, output_path: str = None) -> dict:
     """
-    Generate voice narration from text
+    Generate voice narration from text using either preset voices or Voice Design API
 
     Args:
-        voice_profile: Description of voice characteristics (optional)
+        voice_profile: Description of voice characteristics (e.g., "deep male voice, authoritative")
+                      If empty/None, uses preset voice
         text: Text to speak
         output_path: Optional path to save the audio file
 
@@ -96,22 +108,78 @@ def generate_voice(voice_profile: str, text: str, output_path: str = None) -> di
         dict: {
             "success": bool,
             "audio_file": str (path to saved file),
+            "audio_bytes": bytes,
             "asset_id": str (voice ID used),
+            "voice_description": str (description used),
             "error": str (if failed)
         }
     """
     try:
-        print(f"🔄 Generating Voice: {text[:50]}...")
+        print("\n" + "="*70)
+        print("🎙️  VOICE GENERATION REQUEST")
+        print("="*70)
 
-        # Use default voice (you can customize this)
-        # Popular voice IDs:
-        # - "21m00Tcm4TlvDq8ikWAM" - Rachel (calm, clear)
-        # - "EXAVITQu4vr4xnSDxMaL" - Bella (soft, friendly)
-        # - "ErXwobaYiN019PkySvjV" - Antoni (well-rounded male)
+        print(f"\n📋 Input Parameters:")
+        print(f"  Voice Profile: \"{voice_profile}\"")
+        print(f"  Text: \"{text}\"")
 
-        voice_id = "21m00Tcm4TlvDq8ikWAM"  # Default: Rachel
+        voice_id = None
+        voice_description = None
 
-        # Generate speech
+        # If custom voice profile is provided, use Voice Design API
+        if voice_profile and voice_profile.strip():
+            print(f"\n🎨 Using Voice Design API for custom voice...")
+            print(f"\n📡 Step 1: Design voice from description")
+            print(f"  Method: client.text_to_voice.design()")
+            print(f"  Description: \"{voice_profile}\"")
+            print("="*70)
+            print(f"🔄 Generating voice previews...")
+
+            # Generate voice previews based on description
+            voices = client.text_to_voice.design(
+                model_id="eleven_multilingual_ttv_v2",
+                voice_description=voice_profile,
+                text=text
+            )
+
+            if not voices.previews or len(voices.previews) == 0:
+                raise ValueError("No voice previews generated from description")
+
+            # Use the first preview (best match)
+            preview = voices.previews[0]
+            voice_id = preview.generated_voice_id
+            voice_description = voice_profile
+
+            print(f"✓ Voice designed successfully!")
+            print(f"  Generated Voice ID: {voice_id}")
+            print(f"  Preview count: {len(voices.previews)}")
+
+        else:
+            # Use default preset voice
+            # Popular voice IDs:
+            # - "21m00Tcm4TlvDq8ikWAM" - Rachel (calm, clear)
+            # - "EXAVITQu4vr4xnSDxMaL" - Bella (soft, friendly)
+            # - "ErXwobaYiN019PkySvjV" - Antoni (well-rounded male)
+            voice_id = "21m00Tcm4TlvDq8ikWAM"  # Default: Rachel
+            voice_description = "Rachel (preset voice - calm, clear)"
+            print(f"\n🎤 Using preset voice: Rachel")
+
+        print(f"\n📡 Step 2: Generate speech with voice")
+        print(f"  Method: client.text_to_speech.convert()")
+        print(f"  Params:")
+        print(f"    voice_id: {voice_id}")
+        print(f"    model_id: eleven_multilingual_v2")
+        print(f"    output_format: mp3_44100_128")
+        print(f"    text: \"{text}\"")
+        print(f"    voice_settings:")
+        print(f"      stability: 0.5")
+        print(f"      similarity_boost: 0.75")
+        print(f"      style: 0.0")
+        print(f"      use_speaker_boost: True")
+        print("="*70)
+        print(f"🔄 Sending request to ElevenLabs TTS API...")
+
+        # Generate speech with the selected voice
         audio_generator = client.text_to_speech.convert(
             voice_id=voice_id,
             optimize_streaming_latency=0,
@@ -145,11 +213,16 @@ def generate_voice(voice_profile: str, text: str, output_path: str = None) -> di
                 f.write(audio_bytes)
             print(f"✓ Voice saved: {output_path}")
 
+        print(f"\n✓ Voice generation successful!")
+        print(f"  Size: {len(audio_bytes):,} bytes")
+        print(f"  Voice: {voice_description}")
+
         return {
             "success": True,
             "audio_bytes": audio_bytes,
             "audio_file": output_path if output_path else None,
             "asset_id": voice_id,
+            "voice_description": voice_description,
             "size_bytes": len(audio_bytes)
         }
 
@@ -163,7 +236,7 @@ def generate_voice(voice_profile: str, text: str, output_path: str = None) -> di
 
 def generate_music(positive_styles: list, negative_styles: list, sections: list, output_path: str = None) -> dict:
     """
-    Generate music from style descriptions and sections
+    Generate music from style descriptions and sections using ElevenLabs Music API
 
     Args:
         positive_styles: List of desired musical styles
@@ -175,48 +248,67 @@ def generate_music(positive_styles: list, negative_styles: list, sections: list,
         dict: {
             "success": bool,
             "audio_file": str (path to saved file),
+            "audio_bytes": bytes,
             "asset_id": str (generation ID),
+            "composition_plan": dict (the plan used),
             "error": str (if failed)
         }
     """
     try:
-        # Build comprehensive prompt from styles and sections
-        prompt_parts = []
+        print("\n" + "="*70)
+        print("🎵 MUSIC GENERATION REQUEST")
+        print("="*70)
 
-        if positive_styles:
-            prompt_parts.append(f"Musical style: {', '.join(positive_styles)}")
-
-        # Add section details if provided
-        if sections:
-            for i, section in enumerate(sections):
-                section_name = section.get('sectionName', f'Section {i+1}')
-                duration_ms = section.get('durationMs', 0)
-                local_positive = section.get('positiveLocalStyles', [])
-
-                section_desc = f"{section_name}"
-                if local_positive:
-                    section_desc += f": {', '.join(local_positive)}"
-                if duration_ms:
-                    section_desc += f" ({duration_ms/1000:.1f}s)"
-
-                prompt_parts.append(section_desc)
-
-        # Combine into single prompt
-        prompt = ". ".join(prompt_parts) if prompt_parts else "instrumental background music"
+        print(f"\n📋 Input Parameters:")
+        print(f"  Positive Styles: {positive_styles}")
+        print(f"  Negative Styles: {negative_styles}")
+        print(f"  Sections: {len(sections) if sections else 0}")
 
         # Calculate total duration from sections
         total_duration_ms = sum(s.get('durationMs', 3000) for s in sections) if sections else 10000
-        duration_seconds = max(3, min(60, total_duration_ms / 1000))  # Clamp to 3-60s
 
-        print(f"🔄 Generating Music: {prompt[:50]}... ({duration_seconds}s)")
+        # Build composition plan in ElevenLabs format (snake_case required)
+        composition_plan = {
+            "positive_global_styles": positive_styles if positive_styles else [],
+            "negative_global_styles": negative_styles if negative_styles else [],
+            "sections": []
+        }
 
-        # Generate music using text-to-sound-effects with music prompt
-        # Note: ElevenLabs doesn't have a dedicated music API yet,
-        # so we use text-to-sound-effects with musical descriptions
-        audio_generator = client.text_to_sound_effects.convert(
-            text=prompt,
-            duration_seconds=duration_seconds,
-            prompt_influence=0.5
+        # Convert sections to ElevenLabs format
+        if sections:
+            print(f"\n📐 Section Breakdown:")
+            for i, section in enumerate(sections):
+                section_name = section.get('sectionName', f'Section {i+1}')
+                duration_ms = section.get('durationMs', 3000)
+                local_positive = section.get('positiveLocalStyles', [])
+                local_negative = section.get('negativeLocalStyles', [])
+
+                print(f"  Section {i+1}: {section_name}")
+                print(f"    Duration: {duration_ms}ms ({duration_ms/1000:.1f}s)")
+                print(f"    Local Positive: {local_positive}")
+                print(f"    Local Negative: {local_negative}")
+
+                composition_plan["sections"].append({
+                    "section_name": section_name,
+                    "positive_local_styles": local_positive,
+                    "negative_local_styles": local_negative,
+                    "duration_ms": duration_ms,
+                    "lines": []  # No lyrics for instrumental music
+                })
+
+        print(f"\n🔧 Composition Plan:")
+        print(f"  Global Positive: {composition_plan['positive_global_styles']}")
+        print(f"  Global Negative: {composition_plan['negative_global_styles']}")
+        print(f"  Total Duration: {total_duration_ms}ms ({total_duration_ms/1000:.1f}s)")
+        print(f"\n📡 API Call:")
+        print(f"  Method: client.music.compose()")
+        print(f"  Using composition_plan with {len(composition_plan['sections'])} sections")
+        print("="*70)
+        print(f"🔄 Sending request to ElevenLabs Music API...")
+
+        # Generate music using the dedicated Music API
+        audio_generator = client.music.compose(
+            composition_plan=composition_plan
         )
 
         # Collect audio bytes
@@ -238,20 +330,39 @@ def generate_music(positive_styles: list, negative_styles: list, sections: list,
                 f.write(audio_bytes)
             print(f"✓ Music saved: {output_path}")
 
+        print(f"\n✓ Music generation successful!")
+        print(f"  Size: {len(audio_bytes):,} bytes")
+        print(f"  Duration: {total_duration_ms/1000:.1f}s")
+
         return {
             "success": True,
             "audio_bytes": audio_bytes,
             "audio_file": output_path if output_path else None,
             "asset_id": f"music_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             "size_bytes": len(audio_bytes),
-            "duration_seconds": duration_seconds
+            "duration_ms": total_duration_ms,
+            "composition_plan": composition_plan
         }
 
     except Exception as e:
-        print(f"✗ Music generation failed: {e}")
+        error_msg = str(e)
+        print(f"✗ Music generation failed: {error_msg}")
+
+        # Parse validation errors for clearer messages
+        if "duration_ms" in error_msg and "120000" in error_msg:
+            # Extract which section failed
+            if "sections" in error_msg:
+                import re
+                section_match = re.search(r"sections', (\d+)", error_msg)
+                if section_match:
+                    section_num = int(section_match.group(1)) + 1  # Convert to 1-based
+                    error_msg = f"Section {section_num} exceeds the 120-second (120000ms) limit.\n\nPlease split long sections into smaller parts (each ≤ 120 seconds)."
+                else:
+                    error_msg = "One or more sections exceed the 120-second (120000ms) limit.\n\nPlease split long sections into smaller parts."
+
         return {
             "success": False,
-            "error": str(e)
+            "error": error_msg
         }
 
 

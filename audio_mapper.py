@@ -377,7 +377,7 @@ class AudioMapperGUI:
         list_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Create canvas with scrollbar for custom rows
-        self.marker_canvas = tk.Canvas(list_container, bg="white", highlightthickness=0)
+        self.marker_canvas = tk.Canvas(list_container, bg=COLORS.bg_primary, highlightthickness=0)
         scrollbar = tk.Scrollbar(list_container, command=self.marker_canvas.yview)
         self.marker_canvas.configure(yscrollcommand=scrollbar.set)
 
@@ -385,7 +385,7 @@ class AudioMapperGUI:
         self.marker_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Frame inside canvas to hold marker rows
-        self.marker_rows_frame = tk.Frame(self.marker_canvas, bg="white")
+        self.marker_rows_frame = tk.Frame(self.marker_canvas, bg=COLORS.bg_primary)
         self.marker_canvas_window = self.marker_canvas.create_window(
             (0, 0),
             window=self.marker_rows_frame,
@@ -785,9 +785,9 @@ class AudioMapperGUI:
     def open_marker_editor(self, marker, marker_index, on_cancel_callback=None):
         """Open the PromptEditorWindow modal for editing a marker"""
         # Create save callback that uses marker_manager
-        def on_save(updated_marker):
+        def on_save(updated_marker, index):
             # Delegate to marker_manager
-            if self.marker_manager.update_marker(marker_index, updated_marker):
+            if self.marker_manager.update_marker(index, updated_marker):
                 print(f"✓ Updated marker at {updated_marker['time_ms']}ms")
 
         # Open the editor window
@@ -1072,6 +1072,40 @@ class AudioMapperGUI:
                 row_widget.play_btn.config(text="⏸", bg=COLORS.warning_bg)  # Pause - warning color
             else:
                 row_widget.play_btn.config(text="▶", bg=COLORS.info_bg)  # Play - info color
+
+    def show_marker_progress(self, marker_index):
+        """
+        Show progress bar for a marker row
+
+        Args:
+            marker_index: Index of marker
+        """
+        if 0 <= marker_index < len(self.marker_row_widgets):
+            row_widget = self.marker_row_widgets[marker_index]
+            row_widget.show_progress()
+
+    def update_marker_progress(self, marker_index, percentage):
+        """
+        Update progress bar for a marker row
+
+        Args:
+            marker_index: Index of marker
+            percentage: Progress percentage (0-100)
+        """
+        if 0 <= marker_index < len(self.marker_row_widgets):
+            row_widget = self.marker_row_widgets[marker_index]
+            row_widget.update_progress(percentage)
+
+    def hide_marker_progress(self, marker_index):
+        """
+        Hide progress bar for a marker row
+
+        Args:
+            marker_index: Index of marker
+        """
+        if 0 <= marker_index < len(self.marker_row_widgets):
+            row_widget = self.marker_row_widgets[marker_index]
+            row_widget.hide_progress()
 
     def check_playback_finished(self, marker_index):
         """

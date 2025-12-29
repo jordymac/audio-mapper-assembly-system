@@ -109,11 +109,11 @@ class MusicSectionEditorWindow:
             fg=COLORS.fg_input
         )
         self.duration_entry.pack(fill=tk.X, pady=(0, 5))
-        self.duration_entry.insert(0, str(self.section.get("durationMs", 1000)))
+        self.duration_entry.insert(0, str(self.section.get("durationMs", 30000)))
 
         tk.Label(
             content_frame,
-            text="Duration in milliseconds (e.g., 3000 = 3 seconds)",
+            text="Duration in milliseconds (min: 3000ms / 3 sec, max: 120000ms / 120 sec)",
             font=("Arial", 9),
             fg="#666"
         ).pack(anchor=tk.W, pady=(0, 15))
@@ -226,12 +226,14 @@ class MusicSectionEditorWindow:
             # Get and validate duration
             try:
                 duration = int(self.duration_entry.get().strip())
-                if duration <= 0:
-                    raise ValueError("Duration must be positive")
-            except ValueError:
+                if duration < 3000:
+                    raise ValueError("Duration must be at least 3000ms (3 seconds)")
+                if duration > 120000:
+                    raise ValueError("Duration must be at most 120000ms (120 seconds / 2 minutes)")
+            except ValueError as e:
                 messagebox.showwarning(
                     "Validation Error",
-                    "Duration must be a positive number in milliseconds",
+                    f"Invalid duration: {str(e)}\n\nElevenLabs API limits:\n• Minimum: 3000ms (3 seconds)\n• Maximum: 120000ms (120 seconds / 2 minutes)",
                     parent=self.window
                 )
                 return

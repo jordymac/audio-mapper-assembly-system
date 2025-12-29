@@ -215,14 +215,24 @@ class MarkerVersionManager:
         Returns:
             Marker dict with version structure
         """
-        # If already has versions, just ensure it's valid
-        if "versions" in marker and marker["versions"]:
-            # Ensure current_version exists
-            if "current_version" not in marker:
-                marker["current_version"] = marker["versions"][-1]["version"]
+        # If marker already has version structure (current_version > 0), don't migrate
+        # This preserves markers that haven't been generated yet (current_version = 0)
+        if "current_version" in marker and marker["current_version"] > 0:
+            # Already has versions, ensure structure is valid
+            if "versions" not in marker or not marker["versions"]:
+                # Edge case: has current_version but no versions array
+                # This shouldn't happen, but handle it gracefully
+                pass  # Fall through to create initial version
+            else:
+                return marker
+
+        # Only create v1 if marker doesn't have versions yet AND has current_version = 0
+        # This prevents creating v1 for newly created markers that haven't been generated
+        if "current_version" in marker and marker["current_version"] == 0:
+            # New marker, not generated yet - don't create version
             return marker
 
-        # Create initial version from current marker state
+        # Create initial version from current marker state (for old format markers)
         prompt_data = marker.get(
             "prompt_data",
             MarkerVersionManager.create_default_prompt_data(marker.get("type", "sfx"))

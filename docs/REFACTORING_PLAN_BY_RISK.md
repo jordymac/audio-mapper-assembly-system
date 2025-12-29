@@ -166,13 +166,13 @@ AudioMapperGUI is a **2,665-line GOD CLASS** that needs to be broken down into f
 5. ✅ Extract video controller
 6. ✅ Extract version manager
 7. ✅ Decouple commands from GUI
-8. ⬜ Extract keyboard manager
+8. ✅ Extract keyboard manager
 
 **Goal**: Reduce AudioMapperGUI by ~800 lines, isolate business logic
 
 ### Sprint 3: Core Services (High Risk)
-9. ⬜ Extract audio generator service
-10. ⬜ Extract marker manager
+9. ✅ Extract audio generator service
+10. ✅ Extract marker manager
 
 **Goal**: Reduce AudioMapperGUI by ~1,000 lines, separate concerns
 
@@ -188,17 +188,17 @@ AudioMapperGUI is a **2,665-line GOD CLASS** that needs to be broken down into f
 
 ## Success Metrics
 
-### After Sprint 1 (Low Risk)
+### After Sprint 1 (Low Risk) Done
 - AudioMapperGUI: ~2,265 lines (from 2,665)
 - New modules: 4
 - Test coverage: 40%+
 
-### After Sprint 2 (Medium Risk)
+### After Sprint 2 (Medium Risk) Done
 - AudioMapperGUI: ~1,465 lines
 - New modules: 8
 - Test coverage: 60%+
 
-### After Sprint 3 (High Risk)
+### After Sprint 3 (High Risk) Done
 - AudioMapperGUI: ~465 lines
 - New modules: 10
 - Test coverage: 80%+
@@ -246,5 +246,5 @@ AudioMapperGUI is a **2,665-line GOD CLASS** that needs to be broken down into f
   - ✅ version_manager.py
   - ✅ Decouple commands from GUI
   - ✅ Extract keyboard manager
-- ⬜ Sprint 3 (High Risk): Not started
+- ✅ Sprint 3 (High Risk): Done
 - ⬜ Sprint 4 (Integration): Not started

@@ -321,6 +321,28 @@ Bars: [32]
 
 ---
 
+### 8. Auto-Save Implementation
+**Goal**: Automatically save project state to prevent data loss.
+
+**Problem**:
+- Users can lose work if app crashes before manual save
+- No indication of unsaved changes
+- Manual save workflow interrupts creative flow
+
+**Auto-Save Implementation Steps**:
+1. Create the save/load module → handles JSON read/write
+2. Add auto-save timer → saves every N seconds when changes detected
+3. Track dirty state → flag when markers/template modified
+4. Visual indicator → show "saving..." / "saved" status
+5. Recovery on crash → load last auto-saved state on startup
+
+**Files Affected**:
+- NEW: `managers/autosave_manager.py` - Auto-save logic and timer
+- `audio_mapper.py` - Integrate auto-save status indicator
+- `managers/file_handler.py` - Reuse for save/load operations
+
+---
+
 
 ### 9. Audio Preview
 **Goal**: Play generated audio directly in the tool.
