@@ -28,36 +28,51 @@ This document outlines planned improvements, known issues, and feature ideas for
 
 ---
 
-### 2. Music Assembly Timing
-**Problem**: When generated music is 2 minutes but video is only 15 seconds, which 15s of the music gets used? Does it start at 0s? 10s in? 20s?
+### 2. Music Assembly Timing & Duration Flexibility 📋 SPEC COMPLETE (2025-12-29)
+**Problem**:
+1. When generated music is longer than video, which portion gets used?
+2. When creator extends video in Canva, music needs to extend too
+3. Need control over which part of music track to use
 
-**Current Behavior**: Unknown/undefined
+**Solution Designed**:
+- ✅ Generate long music tracks (2-3min) regardless of template duration
+- ✅ User can select start offset (where in music track video 0:00 begins)
+- ✅ Waveform visualization in popup editor for visual offset selection
+- ✅ Offset validation: max_offset = audio_duration - video_duration
+- ✅ Fades: 50ms default (subtle, not jarring)
+- ✅ Multiple music markers supported (each with own offset)
 
-**Desired Behavior Options**:
-- [ ] Option A: Always start from 0:00 of music file
-- [ ] Option B: User specifies start offset in prompt_data
-- [ ] Option C: Auto-detect best segment (e.g., skip intro fade-in)
-- [ ] Option D: Trim music to exact duration during generation
+**Comprehensive Spec Created**:
+📄 See `docs/MUSIC_ASSEMBLY_SPEC.md` for full design document
 
-**Implementation Ideas**:
+**Data Model**:
 ```json
 {
   "type": "music",
-  "prompt_data": {
-    "positiveGlobalStyles": [...],
-    "sections": [...],
-    "assemblyConfig": {
-      "startOffsetMs": 10000,  // Start music 10s into the track
-      "fadeInMs": 500,
-      "fadeOutMs": 1000
-    }
+  "assemblyConfig": {
+    "startOffsetMs": 30000,  // Start video at 30s into music
+    "fadeInMs": 50,           // Default: 50ms
+    "fadeOutMs": 50,          // Default: 50ms
+    "targetDurationMs": null
   }
 }
 ```
 
-**Files Affected**:
-- `assemble_audio.py` - Assembly logic
-- `audio_mapper.py` - PromptEditorWindow for music config
+**Implementation Status**:
+- [x] Problem analysis complete
+- [x] Solution designed
+- [x] UI mockups complete
+- [x] Data model defined
+- [x] Tech stack identified (numpy + moviepy + pygame)
+- [ ] Phase 1: Backend implementation
+- [ ] Phase 2: UI implementation
+- [ ] Phase 3: Testing & documentation
+
+**Files to Modify**:
+- `core/models.py` - Add assemblyConfig to Marker
+- `ui/editors/music_editor.py` - Add waveform preview section
+- `assemble_audio.py` - Apply offset and fades
+- `managers/waveform_manager.py` - Reuse for popup waveform
 
 ---
 
