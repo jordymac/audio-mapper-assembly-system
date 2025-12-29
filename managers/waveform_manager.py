@@ -7,7 +7,8 @@ Handles waveform extraction, display, and interaction
 import tkinter as tk
 import numpy as np
 from moviepy.video.io.VideoFileClip import VideoFileClip
-from typing import Optional, Callable
+from moviepy.audio.io.AudioFileClip import AudioFileClip
+from typing import Optional, Callable, Tuple
 from config.color_scheme import COLORS
 
 
@@ -113,6 +114,68 @@ class WaveformManager:
             print(f"⚠ Could not extract waveform: {e}")
             self._show_placeholder("Could not extract audio waveform", COLORS.disabled_text)
             return False
+
+    @staticmethod
+    def extract_waveform_from_audio(audio_filepath: str, target_width: int = 150) -> Tuple[Optional[list[float]], int]:
+        """
+        Extract waveform data from an audio file (MP3, WAV, etc.)
+
+        Static method for use by MarkerRow and MusicEditor components.
+
+        Args:
+            audio_filepath: Path to audio file (MP3, WAV, etc.)
+            target_width: Number of pixels/samples in waveform (default: 150 for mini-waveforms)
+
+        Returns:
+            Tuple of (waveform_data, duration_ms):
+            - waveform_data: List of normalized amplitudes (0-1), or None if extraction failed
+            - duration_ms: Duration in milliseconds, or 0 if extraction failed
+        """
+        try:
+            # Load audio file with moviepy
+            audio_clip = AudioFileClip(audio_filepath)
+
+            # Get audio as numpy array (downsample to 22050 Hz for performance)
+            audio_array = audio_clip.to_soundarray(fps=22050)
+
+            # Get duration in milliseconds
+            duration_ms = int(audio_clip.duration * 1000)
+
+            audio_clip.close()
+
+            # If stereo, convert to mono by averaging channels
+            if len(audio_array.shape) > 1:
+                audio_array = np.mean(audio_array, axis=1)
+
+            # Calculate waveform data (same logic as _calculate_waveform_data)
+            total_samples = len(audio_array)
+            samples_per_pixel = max(1, total_samples // target_width)
+
+            waveform = []
+            for i in range(target_width):
+                start_idx = i * samples_per_pixel
+                end_idx = min(start_idx + samples_per_pixel, total_samples)
+
+                if start_idx < total_samples:
+                    chunk = audio_array[start_idx:end_idx]
+                    if len(chunk) > 0:
+                        rms = np.sqrt(np.mean(chunk**2))
+                        waveform.append(rms)
+                    else:
+                        waveform.append(0)
+                else:
+                    waveform.append(0)
+
+            # Normalize to 0-1 range
+            max_val = max(waveform) if waveform else 1
+            if max_val > 0:
+                waveform = [w / max_val for w in waveform]
+
+            return waveform, duration_ms
+
+        except Exception as e:
+            print(f"⚠ Could not extract waveform from audio: {e}")
+            return None, 0
 
     def _calculate_waveform_data(self, audio_array: np.ndarray, target_width: int = 1200):
         """

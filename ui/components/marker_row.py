@@ -6,8 +6,11 @@ Layout: [▶] [🔄] 0:00.150 | SFX | Marker Name | ✓ v1
 """
 
 import tkinter as tk
+from tkinter import ttk
+import os
 from config.color_scheme import COLORS
 from ui.components.tooltip import ToolTip
+from managers.waveform_manager import WaveformManager
 
 
 class MarkerRow:
@@ -124,6 +127,25 @@ class MarkerRow:
         name_label.bind("<Button-1>", self.on_row_click)
         name_label.bind("<Double-Button-1>", self.on_row_double_click)
 
+        # Waveform canvas (150px × 40px)
+        self.waveform_canvas = tk.Canvas(
+            self.frame,
+            width=150,
+            height=40,
+            bg=COLORS.bg_tertiary,
+            highlightthickness=0
+        )
+        self.waveform_canvas.pack(side=tk.LEFT, padx=5)
+        self.waveform_canvas.bind("<Button-1>", self.on_row_click)
+        self.waveform_canvas.bind("<Double-Button-1>", self.on_row_double_click)
+
+        # Initialize waveform data
+        self.waveform_data = None
+        self.audio_duration_ms = 0
+
+        # Try to load waveform if audio exists
+        self.load_waveform()
+
         # Status icon + Version badge
         status_icon = self.get_status_icon(self.marker.get("status", "not yet generated"))
         current_version = self.marker.get("current_version", 0)
@@ -159,6 +181,17 @@ class MarkerRow:
             status_key = current_status.get("status", "not_yet_generated")
             tooltip_text = status_tooltips.get(status_key, "Unknown status")
             ToolTip(status_label, tooltip_text)
+
+        # Progress bar (initially hidden)
+        self.progress_var = tk.DoubleVar(value=0)
+        self.progress_bar = ttk.Progressbar(
+            self.frame,
+            variable=self.progress_var,
+            maximum=100,
+            mode='determinate',
+            length=150
+        )
+        # Don't pack it yet - will show when generating
 
     def format_time(self, ms):
         """Format milliseconds as M:SS.mmm"""
@@ -219,3 +252,120 @@ class MarkerRow:
         for widget in self.frame.winfo_children():
             widget.destroy()
         self.create_widgets()
+
+    def show_progress(self):
+        """Show progress bar and set to 0%"""
+        self.progress_var.set(0)
+        self.progress_bar.pack(side=tk.LEFT, padx=5)
+
+    def update_progress(self, percentage):
+        """
+        Update progress bar percentage
+
+        Args:
+            percentage: Progress value from 0-100
+        """
+        self.progress_var.set(percentage)
+
+    def hide_progress(self):
+        """Hide progress bar"""
+        self.progress_bar.pack_forget()
+
+    def load_waveform(self):
+        """
+        Load waveform data from audio file if it exists
+
+        Checks for audio file in generated_audio directory and extracts waveform
+        """
+        # Get current version data to find audio file
+        current_version_data = self.gui.get_current_version_data(self.marker)
+        if not current_version_data:
+            self.draw_waveform_placeholder("No audio yet")
+            return
+
+        # Get asset file path
+        asset_file = current_version_data.get("asset_file")
+        if not asset_file:
+            self.draw_waveform_placeholder("No audio file")
+            return
+
+        # Construct full path (check multiple possible locations)
+        audio_path = None
+        possible_paths = [
+            os.path.join("generated_audio", asset_file),
+            os.path.join("generated_audio", self.marker["type"], asset_file),
+            asset_file  # Absolute path
+        ]
+
+        for path in possible_paths:
+            if os.path.exists(path):
+                audio_path = path
+                break
+
+        if not audio_path:
+            self.draw_waveform_placeholder("Audio not found")
+            return
+
+        # Extract waveform data using WaveformManager
+        self.waveform_data, self.audio_duration_ms = WaveformManager.extract_waveform_from_audio(
+            audio_path,
+            target_width=150  # Match canvas width
+        )
+
+        if self.waveform_data:
+            self.draw_waveform()
+        else:
+            self.draw_waveform_placeholder("Load failed")
+
+    def draw_waveform(self):
+        """Draw waveform visualization on canvas"""
+        if not self.waveform_data:
+            return
+
+        # Clear canvas
+        self.waveform_canvas.delete("all")
+
+        canvas_width = 150
+        canvas_height = 40
+        mid_y = canvas_height // 2
+
+        # Draw waveform bars
+        for i, amplitude in enumerate(self.waveform_data):
+            # Calculate x position
+            x = int((i / len(self.waveform_data)) * canvas_width)
+
+            # Scale amplitude to fit canvas
+            height = int(amplitude * (canvas_height / 2) * 0.9)
+
+            # Draw vertical line
+            self.waveform_canvas.create_line(
+                x, mid_y - height,
+                x, mid_y + height,
+                fill=COLORS.waveform_color,
+                width=1,
+                tags="waveform"
+            )
+
+        # Draw center line
+        self.waveform_canvas.create_line(
+            0, mid_y,
+            canvas_width, mid_y,
+            fill=COLORS.centerline,
+            width=1,
+            tags="centerline"
+        )
+
+    def draw_waveform_placeholder(self, text: str):
+        """Draw placeholder text on waveform canvas"""
+        self.waveform_canvas.delete("all")
+        self.waveform_canvas.create_text(
+            75, 20,  # Center of 150×40 canvas
+            text=text,
+            fill=COLORS.placeholder_text,
+            font=("Arial", 8),
+            tags="placeholder"
+        )
+
+    def refresh_waveform(self):
+        """Refresh waveform display (call after audio generation completes)"""
+        self.load_waveform()

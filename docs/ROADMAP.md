@@ -94,6 +94,7 @@ This document outlines planned improvements, known issues, and feature ideas for
 - [ ] Hover states missing on some interactive elements
 - [ ] Marker indicators on timeline styling
 - [ ] Tooltip backgrounds
+- [ ] Generation loading indicator (when pressing G)
 
 **Strategy for Remaining Work**:
 - Audit all widgets for COLORS usage
@@ -108,9 +109,57 @@ This document outlines planned improvements, known issues, and feature ideas for
 
 ---
 
+### 4. Generation Progress Feedback
+**Problem**: When user presses 'G' to generate audio, there's no visual feedback that generation has started or is in progress.
+
+**User Experience Issue**:
+- User presses 'G' → nothing visible happens immediately
+- Takes several seconds for API response
+- User doesn't know if key was registered
+- No indication of progress or completion
+
+**Proposed Solution**:
+Show progress bar in waveform column during generation, then replace with actual waveform on completion.
+
+**Design**: Waveform Column Progress Bar
+```
+✏️ 0:00.150  SFX  SFX_00001  [████████░░░░░░░░] 45%  (not yet generated)
+✏️ 0:02.000  VOICE VOX_00001  [              ]       (not yet generated)
+```
+**How it works**:
+- Progress bar appears in waveform column during generation (0-100%)
+- Once complete, progress bar is replaced by actual waveform
+- Visual progression fills the space where waveform will appear
+- Non-blocking (can continue working on other markers)
+
+**Benefits**:
+- Uses otherwise-empty waveform column (no extra UI needed)
+- Smooth transition: progress bar → waveform in same space
+- Visually intuitive (filling = progress, waveform = complete)
+- Supports batch generation (multiple progress bars visible simultaneously)
+- Error states can show in same column (red bar or error icon)
+
+**Related Feature**: This sets up the waveform column for future audio preview (#9), where clicking the waveform will play the audio.
+
+**Implementation Tasks**:
+- [ ] Add progress bar rendering in waveform column
+- [ ] Show progress percentage during generation (0-100%)
+- [ ] Replace progress bar with waveform on completion
+- [ ] Add timeout handling (30s max)
+- [ ] Show error state in waveform column if generation fails
+- [ ] Support batch generation (multiple progress bars visible)
+
+**Files Affected**:
+- `services/audio_service.py` - Add progress callbacks during generation
+- `ui/components/marker_row.py` - Render progress bar in waveform column
+- `managers/waveform_manager.py` - Coordinate progress → waveform transition
+- `audio_mapper.py` - Wire up generation progress updates
+
+---
+
 ## 🎵 Music Workflow Improvements
 
-### 4. BPM & Bar-Based Sections
+### 5. BPM & Bar-Based Sections
 **Problem**: Hard to know how long a music section is in milliseconds. Natural to think in bars (e.g., "intro is 32 bars at 120 BPM").
 
 **Proposed Solution**:
@@ -154,7 +203,7 @@ Bars: [32]
 
 ## 📚 Prompt Library System
 
-### 5. Reusable Prompt Templates
+### 6. Reusable Prompt Templates
 **Goal**: Save commonly used prompts for quick reuse across projects.
 
 **User Stories**:
@@ -164,19 +213,19 @@ Bars: [32]
 
 **Proposed Features**:
 
-#### 5.1 Save Prompt as Template
+#### 6.1 Save Prompt as Template
 - [ ] Button in PromptEditorWindow: "Save as Template"
 - [ ] Name template (e.g., "Cinematic Orchestral")
 - [ ] Add tags (e.g., "epic", "music", "orchestral")
 - [ ] Store in `~/.audio_mapper/templates/` or project `/templates/`
 
-#### 5.2 Load Template
+#### 6.2 Load Template
 - [ ] Dropdown/browser in PromptEditorWindow
 - [ ] Filter by type (SFX/Music/Voice)
 - [ ] Search by name/tags
 - [ ] Preview template details before loading
 
-#### 5.3 Template Management
+#### 6.3 Template Management
 - [ ] Edit existing templates
 - [ ] Delete templates
 - [ ] Export/import template packs (JSON)
@@ -212,7 +261,7 @@ Bars: [32]
 
 ## 🔧 Technical Improvements
 
-### 6. Metadata Management
+### 7. Metadata Management
 **Current Issues**:
 - [ ] `asset_id` field usage unclear
 - [ ] `status` field not consistently updated
@@ -272,60 +321,23 @@ Bars: [32]
 
 ---
 
-### 7. Code Organization (Ongoing)
-**Phase 1: Zero-Risk Extractions** ✅ COMPLETE
-- ✅ ColorScheme → `color_scheme.py`
-- ✅ Command Pattern → `commands.py`
-- ✅ HistoryManager → `history_manager.py`
-- ✅ ToolTip → `tooltip.py`
-
-**Phase 2: Medium-Risk Extractions** (Next)
-- [ ] BatchProgressWindow → `batch_progress_window.py`
-- [ ] MusicSectionEditorWindow → `music_section_editor.py`
-- [ ] PromptEditorWindow → `prompt_editor_window.py`
-
-**Phase 3: Major Refactoring**
-- [ ] AudioMapperGUI → Split into multiple files
-  - [ ] `audio_mapper_gui.py` - Main window setup
-  - [ ] `timeline_widget.py` - Timeline/scrubber/markers
-  - [ ] `marker_manager.py` - Marker list + operations
-  - [ ] `video_player.py` - Video playback logic
-
-**Goal**: Get `audio_mapper.py` under 1000 lines
-
----
-
-## 🚀 Future Features
-
-### 8. Direct ElevenLabs Integration
-**Goal**: Generate audio directly from the tool without manual API calls.
-
-**Features**:
-- [ ] API key configuration (settings dialog)
-- [ ] Click "Generate" → calls ElevenLabs API
-- [ ] Progress tracking (polling generation status)
-- [ ] Auto-download generated files
-- [ ] Error handling + retry logic
-
-**UI Changes**:
-- Generate button becomes active/functional
-- Progress indicator during generation
-- "Generating..." status in marker list
-- Success/failure notifications
-
-**Files Affected**:
-- NEW: `elevenlabs_client.py` - API wrapper
-- `audio_mapper.py` - Generate button implementation
-- NEW: `~/.audio_mapper/config.json` - API keys
-
----
 
 ### 9. Audio Preview
 **Goal**: Play generated audio directly in the tool.
 
+**Related Feature**: Builds on generation progress feedback (#4) - the waveform column will already show waveforms, this makes them clickable/playable.
+
+**Waveform Column Evolution**:
+```
+1. Empty:      [              ]  (no audio yet)
+2. Generating: [████████░░░░░░] 45%  (progress bar - feature #4)
+3. Generated:  [~waveform~visual~]  (waveform appears)
+4. Playable:   [~waveform~visual~] ▶️  (click to play - this feature)
+```
+
 **Features**:
-- [ ] Play button next to each marker
-- [ ] Waveform preview in marker list
+- [ ] Click waveform to play/pause audio
+- [ ] Play button next to each marker (alternative to clicking waveform)
 - [ ] Scrub to marker position + auto-play
 - [ ] Volume control
 - [ ] Solo/mute tracks (Music/SFX/Voice)
@@ -340,7 +352,7 @@ Bars: [32]
 
 ---
 
-### 10. Batch Operations
+### 11. Batch Operations
 **Goal**: Apply operations to multiple markers at once.
 
 **Features**:
@@ -356,7 +368,7 @@ Bars: [32]
 
 ---
 
-### 11. Variation Management UI
+### 12. Variation Management UI
 **Goal**: Compare multiple audio versions side-by-side.
 
 **Features**:
@@ -369,70 +381,27 @@ Bars: [32]
 - `audio_mapper.py` - Version comparison UI
 - Template JSON with version metadata
 
----
-
-### 12. Collaboration Features
-**Goal**: Enable team workflows.
-
-**Features**:
-- [ ] Export/import template packs
-- [ ] Share marker collections
-- [ ] Comments on markers
-- [ ] Review/approval workflow
-- [ ] Cloud sync (Dropbox/Google Drive integration)
-
-**Far Future - Requires Backend**
-
----
-
-## 📝 Documentation Needs
-
-### 13. User Documentation
-- [ ] Video tutorial (screen recording)
-- [ ] Quickstart guide (5 min walkthrough)
-- [ ] FAQ page
-- [ ] Troubleshooting common issues
-- [ ] Keyboard shortcut cheatsheet
-
-### 14. Developer Documentation
-- [ ] Architecture overview diagram
-- [ ] Data flow diagrams
-- [ ] JSON schema reference
-- [ ] API documentation (when ElevenLabs integration added)
-- [ ] Contributing guide
-
----
-
-## 🐛 Known Bugs
-
-### 15. Minor Issues
-- [ ] Window resize doesn't update layout properly
-- [ ] Marker drag-and-drop occasionally snaps to wrong position
-- [ ] Undo/redo doesn't work for marker dragging sometimes
-- [ ] Long marker names overflow in list display
-- [ ] Copy/paste markers not implemented
 
 ---
 
 ## 🎯 Priority Matrix
 
 ### High Priority (Do Next)
-1. **Music Assembly Timing** - Core functionality unclear
-2. **Remaining UI/UX Polish** - Dark mode support, hover states
+1. **Music Assembly Timing** (#2) - Core functionality unclear
+2. **Remaining UI/UX Polish** (#3) - Dark mode support, hover states
+3. **Generation Progress Feedback** (#4) - User needs feedback when pressing G
 
 ### Medium Priority
-4. **BPM & Bar-Based Sections** - Quality of life improvement
-5. **Metadata Management** - Foundation for future features
-6. **Phase 2 Refactoring** - Keep codebase maintainable
+4. **BPM & Bar-Based Sections** (#5) - Quality of life improvement
+5. **Metadata Management** (#7) - Foundation for future features
 
 ### Low Priority (Nice to Have)
-7. **Prompt Library** - Can work around manually
-8. **Audio Preview** - Can preview externally
-9. **Direct ElevenLabs Integration** - API calls work fine externally
+6. **Prompt Library** (#6) - Can work around manually
+7. **Audio Preview** (#9) - Can preview externally
 
 ### Future / Research Needed
-10. **Collaboration Features** - Requires backend design
-11. **Variation Management UI** - Depends on metadata work
+8. **Batch Operations** (#11) - Requires selection UI design
+9. **Variation Management UI** (#12) - Depends on metadata work
 
 ---
 
@@ -444,16 +413,16 @@ When starting next work session, tackle in this order:
 - [x] ~~Fix versioning bug (Issue #1)~~ ✅ COMPLETE
 - [x] ~~Button styling and UI consistency (Issue #3)~~ ✅ COMPLETE
 - [ ] Define music assembly timing behavior (Issue #2)
+- [ ] Add generation loading indicator (Issue #4)
 - [ ] Complete remaining UI polish (dark mode, hover states)
 
 **Short Term (Next 2 Weeks)**:
-- [ ] Design + implement BPM/bar input (Issue #4)
-- [ ] Implement enhanced metadata schema (Issue #6)
-- [ ] Extract BatchProgressWindow and editor windows (Issue #7)
+- [ ] Design + implement BPM/bar input (Issue #5)
+- [ ] Implement enhanced metadata schema (Issue #7)
 
 **Medium Term (Next Month)**:
-- [ ] Design prompt library system (Issue #5)
-- [ ] Implement template save/load (Issue #5)
+- [ ] Design prompt library system (Issue #6)
+- [ ] Implement template save/load (Issue #6)
 - [ ] Add audio preview (Issue #9)
 
 ---
@@ -462,30 +431,10 @@ When starting next work session, tackle in this order:
 
 Random ideas that need more thought:
 
-- **Smart Section Splitting**: AI suggests section breaks based on audio analysis
-- **Tempo Detection**: Auto-detect BPM from reference music
-- **Waveform Sync**: Visual alignment of audio waveform with video frames
-- **Export to DAW**: Generate Ableton/Logic project files
-- **Marker Grouping**: Folder/group system for organizing markers
-- **Search/Filter**: Find markers by name, type, or prompt content
 - **Marker Colors**: Custom colors beyond type defaults
 - **Timeline Zoom**: Magnify timeline for precise positioning
 - **Grid Snap**: Snap markers to frame boundaries or BPM grid
 - **Hotkey Customization**: User-defined keyboard shortcuts
-
----
-
-## 📊 Metrics to Track
-
-If we wanted to measure progress:
-- Total markers created across all projects
-- Average markers per template
-- Time saved vs manual DAW workflow
-- Number of audio variations generated
-- User session length
-- Template reuse rate
-
----
 
 **End of Roadmap**
 
