@@ -142,7 +142,7 @@ class MarkerManager:
         marker = markers[marker_index]
 
         # Execute via command pattern for undo/redo support
-        command = DeleteMarkerCommand(self.marker_repository, marker)
+        command = DeleteMarkerCommand(self.marker_repository, marker, marker_index)
         self.history.execute_command(command)
 
         return True

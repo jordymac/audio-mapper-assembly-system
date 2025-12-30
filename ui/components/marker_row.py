@@ -80,6 +80,38 @@ class MarkerRow:
         self.generate_btn.pack(side=tk.LEFT, padx=2, pady=2)
         ToolTip(self.generate_btn, "Generate/Regenerate audio (G/R)")
 
+        # Edit button
+        self.edit_btn = tk.Button(
+            self.frame,
+            text="✏️",
+            width=3,
+            height=1,
+            command=self.on_edit_click,
+            bg=COLORS.btn_primary_bg,
+            fg=COLORS.fg_primary,
+            font=("Arial", 10),
+            relief=tk.RAISED,
+            bd=1
+        )
+        self.edit_btn.pack(side=tk.LEFT, padx=2, pady=2)
+        ToolTip(self.edit_btn, "Edit marker prompt (E)")
+
+        # Delete button
+        self.delete_btn = tk.Button(
+            self.frame,
+            text="🗑️",
+            width=3,
+            height=1,
+            command=self.on_delete_click,
+            bg=COLORS.btn_danger_bg,
+            fg=COLORS.fg_primary,
+            font=("Arial", 10),
+            relief=tk.RAISED,
+            bd=1
+        )
+        self.delete_btn.pack(side=tk.LEFT, padx=2, pady=2)
+        ToolTip(self.delete_btn, "Delete marker (Delete)")
+
         # Time label
         time_str = self.format_time(self.marker["time_ms"])
         time_label = tk.Label(
@@ -237,6 +269,19 @@ class MarkerRow:
         """Handle generate button click"""
         print(f"🔄 Generate marker {self.marker_index}: {self.marker.get('name', '(unnamed)')}")
         self.gui.generate_marker_audio(self.marker_index)
+
+    def on_edit_click(self):
+        """Handle edit button click - open marker editor"""
+        print(f"✏️ Edit marker {self.marker_index}: {self.marker.get('name', '(unnamed)')}")
+        self.gui.open_marker_editor(self.marker, self.marker_index)
+
+    def on_delete_click(self):
+        """Handle delete button click"""
+        print(f"🗑️ Delete marker {self.marker_index}: {self.marker.get('name', '(unnamed)')}")
+        # Delete directly using marker manager
+        marker_time = self.marker.get('time_ms', 0)
+        if self.gui.marker_manager.delete_marker_at_index(self.marker_index):
+            print(f"✓ Deleted marker at {marker_time}ms")
 
     def set_selected(self, selected):
         """Set selection state and update visual appearance"""

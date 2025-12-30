@@ -52,6 +52,7 @@ from controllers.video_player_controller import VideoPlayerController
 from services.audio_service import AudioGenerationService
 from services.audio_player import AudioPlayer
 from services.assembly_service import AssemblyService
+from services.assembly_playback_service import AssemblyPlaybackService
 from ui.components.tooltip import ToolTip
 from ui.components.marker_row import MarkerRow
 from ui.components.multi_track_display import MultiTrackDisplay
@@ -94,8 +95,8 @@ class AudioMapperGUI:
         # Assembly service (multi-track audio assembly)
         self.assembly_service = AssemblyService(temp_dir="temp")
 
-        # Auto-assembly setting
-        self.auto_assemble_enabled = tk.BooleanVar(value=False)
+        # Auto-assembly setting (enabled by default for better UX)
+        self.auto_assemble_enabled = tk.BooleanVar(value=True)
 
         # Assembly state
         self.assembled_preview_file = None
@@ -122,11 +123,10 @@ class AudioMapperGUI:
 
         # Build UI
         self.create_menu_bar()
-        self.create_video_frame()
+        self.create_video_frame()  # Now includes integrated timeline controls
         self.create_filmstrip_display()
         self.create_video_waveform_display()
         self.create_multi_track_display()
-        self.create_timeline_controls()
         self.create_marker_list()
         self.create_bottom_button_bar()
 
@@ -139,6 +139,9 @@ class AudioMapperGUI:
             on_redraw_indicators=self.redraw_marker_indicators
         )
 
+        # Flag to prevent audio seek during programmatic slider updates
+        self._slider_update_in_progress = False
+
         # Initialize video player controller
         self.video_player = VideoPlayerController(
             video_canvas=self.video_canvas,
@@ -148,9 +151,12 @@ class AudioMapperGUI:
             fps_label=self.fps_label,
             on_update_filmstrip=self._update_filmstrip_position,
             on_update_waveform=self._update_waveform_position,
-            on_timeline_slider_update=lambda time_ms: self.timeline_slider.set(time_ms),
+            on_timeline_slider_update=self._programmatic_slider_update,
             on_template_prompt=self.prompt_template_info
         )
+
+        # Initialize assembly playback service (for synchronized audio)
+        self.assembly_playback = AssemblyPlaybackService(video_player=self.video_player)
 
         # Initialize marker manager
         self.marker_manager = MarkerManager(
@@ -211,7 +217,7 @@ class AudioMapperGUI:
         file_menu.add_command(label="Exit", command=self.root.quit)
 
     def create_video_frame(self):
-        """Create video player frame with Canvas"""
+        """Create video player frame with integrated controls (YouTube-style)"""
         video_container = tk.Frame(self.root, bg="black", height=400)
         video_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 5))
 
@@ -227,6 +233,76 @@ class AudioMapperGUI:
             font=("Arial", 14),
             tags="placeholder"
         )
+
+        # Integrated control bar at bottom of video (YouTube-style)
+        control_bar = tk.Frame(video_container, bg=COLORS.bg_secondary, height=70)
+        control_bar.pack(fill=tk.X, side=tk.BOTTOM)
+        control_bar.pack_propagate(False)
+
+        # Timeline slider (top of control bar)
+        timeline_container = tk.Frame(control_bar, bg=COLORS.bg_secondary)
+        timeline_container.pack(fill=tk.X, padx=10, pady=(5, 0))
+
+        self.timeline_slider = ttk.Scale(
+            timeline_container,
+            from_=0,
+            to=100,
+            orient=tk.HORIZONTAL,
+            command=self.on_timeline_change
+        )
+        self.timeline_slider.pack(fill=tk.X)
+
+        # Playback controls (bottom of control bar)
+        playback_controls = tk.Frame(control_bar, bg=COLORS.bg_secondary)
+        playback_controls.pack(fill=tk.X, padx=10, pady=(5, 5))
+
+        # Left side: Step back button
+        tk.Button(
+            playback_controls,
+            text="◀◀ -50ms",
+            command=lambda: self.step_time(-50),
+            width=10,
+            font=("Arial", 9)
+        ).pack(side=tk.LEFT, padx=2)
+
+        # Center: Play/Pause button
+        self.play_button = tk.Button(
+            playback_controls,
+            text="▶ Play",
+            command=self.toggle_playback,
+            width=10,
+            font=("Arial", 9, "bold")
+        )
+        self.play_button.pack(side=tk.LEFT, padx=2)
+
+        # Right side: Step forward button
+        tk.Button(
+            playback_controls,
+            text="50ms ▶▶",
+            command=lambda: self.step_time(50),
+            width=10,
+            font=("Arial", 9)
+        ).pack(side=tk.LEFT, padx=2)
+
+        # Timestamp display (right side)
+        self.timestamp_label = tk.Label(
+            playback_controls,
+            text="00:00:00.000",
+            font=("Courier", 11, "bold"),
+            bg=COLORS.bg_secondary,
+            fg=COLORS.fg_primary
+        )
+        self.timestamp_label.pack(side=tk.LEFT, padx=15)
+
+        # FPS display (far right)
+        self.fps_label = tk.Label(
+            playback_controls,
+            text="",
+            font=("Courier", 9),
+            bg=COLORS.bg_secondary,
+            fg=COLORS.fg_secondary
+        )
+        self.fps_label.pack(side=tk.LEFT, padx=5)
 
     def create_filmstrip_display(self):
         """Create film strip visualization canvas"""
@@ -303,44 +379,6 @@ class AudioMapperGUI:
         """Callback when jumping to a marker"""
         self.seek_to_time(time_ms)
         self.timeline_slider.set(self.video_player.get_current_time())
-
-    def create_timeline_controls(self):
-        """Create timeline scrubber and controls"""
-        timeline_frame = tk.Frame(self.root)
-        timeline_frame.pack(fill=tk.X, padx=10, pady=5)
-
-        # Playback controls
-        control_frame = tk.Frame(timeline_frame)
-        control_frame.pack(fill=tk.X, pady=(0, 5))
-
-        self.play_button = tk.Button(control_frame, text="▶ Play", command=self.toggle_playback, width=10)
-        self.play_button.pack(side=tk.LEFT, padx=5)
-
-        tk.Button(control_frame, text="◀◀ -50ms", command=lambda: self.step_time(-50), width=10).pack(side=tk.LEFT, padx=5)
-        tk.Button(control_frame, text="50ms ▶▶", command=lambda: self.step_time(50), width=10).pack(side=tk.LEFT, padx=5)
-
-        # Timestamp display
-        self.timestamp_label = tk.Label(control_frame, text="00:00:00.000", font=("Courier", 14, "bold"))
-        self.timestamp_label.pack(side=tk.LEFT, padx=20)
-
-        # FPS display (for video mode)
-        self.fps_label = tk.Label(control_frame, text="", font=("Courier", 10))
-        self.fps_label.pack(side=tk.LEFT, padx=10)
-
-        # Timeline slider
-        slider_frame = tk.Frame(timeline_frame)
-        slider_frame.pack(fill=tk.X)
-
-        tk.Label(slider_frame, text="Timeline:").pack(side=tk.LEFT, padx=(0, 5))
-
-        self.timeline_slider = ttk.Scale(
-            slider_frame,
-            from_=0,
-            to=100,
-            orient=tk.HORIZONTAL,
-            command=self.on_timeline_change
-        )
-        self.timeline_slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
     def create_bottom_button_bar(self):
         """Create bottom button bar with Add Marker buttons, Assemble, and Export"""
@@ -497,6 +535,9 @@ class AudioMapperGUI:
 
         # Draw markers on each track
         for track_id, markers in self.assembly_service.track_assignments.items():
+            # Clear old indicators first to prevent overlay issues
+            self.multi_track_display.clear_marker_indicators(track_id)
+
             if markers:
                 self.multi_track_display.draw_marker_indicators(track_id, markers, duration_ms)
 
@@ -545,52 +586,53 @@ class AudioMapperGUI:
         # Store marker row widgets
         self.marker_row_widgets = []
 
-        # Right side panel - Batch operations
+        # Right side panel - Add marker and export buttons
         export_container = tk.Frame(main_container, padx=10, width=180)
         export_container.pack(side=tk.RIGHT, fill=tk.Y)
         export_container.pack_propagate(False)
 
-        # Batch operation buttons - stacked vertically
+        # Add marker buttons
         create_colored_button(
             export_container,
-            text="🔄 Generate All Missing",
-            command=self.batch_generate_missing,
-            bg_color=COLORS.btn_success_bg,
-            fg_color=COLORS.btn_success_fg,
-            font=("Arial", 8, "bold"),
+            text="Add SFX",
+            command=lambda: self.add_marker_by_type("sfx"),
+            bg_color=COLORS.sfx_bg,
+            fg_color=COLORS.sfx_fg,
+            font=("Arial", 9, "bold"),
             width=18,
             height=2
         ).pack(pady=2, fill=tk.X)
 
         create_colored_button(
             export_container,
-            text="🔄 Regenerate All",
-            command=self.batch_regenerate_all,
-            bg_color=COLORS.btn_warning_bg,
-            fg_color=COLORS.btn_warning_fg,
-            font=("Arial", 8, "bold"),
+            text="Add Music",
+            command=lambda: self.add_marker_by_type("music"),
+            bg_color=COLORS.music_bg,
+            fg_color=COLORS.music_fg,
+            font=("Arial", 9, "bold"),
             width=18,
             height=2
         ).pack(pady=2, fill=tk.X)
 
         create_colored_button(
             export_container,
-            text="🔄 Generate Type...",
-            command=self.batch_generate_by_type,
+            text="Add Voice",
+            command=lambda: self.add_marker_by_type("voice"),
+            bg_color=COLORS.voice_bg,
+            fg_color=COLORS.voice_fg,
+            font=("Arial", 9, "bold"),
+            width=18,
+            height=2
+        ).pack(pady=2, fill=tk.X)
+
+        # Export button (placeholder for now)
+        create_colored_button(
+            export_container,
+            text="📦 Export",
+            command=self.open_export_center,
             bg_color=COLORS.btn_primary_bg,
             fg_color=COLORS.btn_primary_fg,
-            font=("Arial", 8, "bold"),
-            width=18,
-            height=2
-        ).pack(pady=2, fill=tk.X)
-
-        create_colored_button(
-            export_container,
-            text="🎵 Assemble Now",
-            command=self.manual_assemble_audio,
-            bg_color=COLORS.btn_special_bg,
-            fg_color=COLORS.btn_special_fg,
-            font=("Arial", 8, "bold"),
+            font=("Arial", 9, "bold"),
             width=18,
             height=2
         ).pack(pady=2, fill=tk.X)
@@ -855,29 +897,92 @@ class AudioMapperGUI:
         create_colored_button(dialog, text="OK", command=save, bg_color=COLORS.btn_success_bg, fg_color=COLORS.btn_success_fg, font=("Arial", 10)).pack(pady=15)
 
     def seek_to_time(self, time_ms):
-        """Seek to specific time - delegates to VideoPlayerController"""
+        """
+        Seek to specific time - delegates to VideoPlayerController
+        Markers will trigger if playhead crosses them during seek
+        """
         self.video_player.seek_to_time(time_ms)
 
     def toggle_playback(self):
-        """Toggle play/pause - delegates to VideoPlayerController"""
-        self.video_player.toggle_playback()
+        """
+        Toggle play/pause - delegates to VideoPlayerController
+        Also handles marker-triggered audio playback
+        """
+        try:
+            # Track previous state
+            was_playing = self.video_player.is_playing
+
+            # Toggle video playback
+            self.video_player.toggle_playback()
+            print(f"Video playback toggled: is_playing={self.video_player.is_playing}")
+
+            # Handle marker-triggered playback
+            if self.video_player.is_playing and not was_playing:
+                # Starting playback - set markers and start triggering
+                self.assembly_playback.set_markers(self.markers)
+                self.assembly_playback.preload_marker_sounds()
+                self.assembly_playback.start_playback()
+                print(f"🎵 Started marker-triggered playback ({len(self.markers)} markers)")
+            elif not self.video_player.is_playing and was_playing:
+                # Paused or stopped - stop all triggered sounds immediately
+                self.assembly_playback.stop_playback()
+                print("⏸ Paused - stopped all marker sounds")
+
+        except Exception as e:
+            print(f"Error in toggle_playback: {e}")
+            import traceback
+            traceback.print_exc()
 
     def step_time(self, delta_ms):
-        """Step forward/backward by delta_ms - delegates to VideoPlayerController"""
+        """
+        Step forward/backward by delta_ms - delegates to VideoPlayerController
+        Markers will trigger if playhead crosses them
+        """
         self.video_player.step_time(delta_ms)
 
     def step_frame(self, delta_frames):
-        """Step forward/backward by frames - delegates to VideoPlayerController"""
+        """
+        Step forward/backward by frames - delegates to VideoPlayerController
+        Markers will trigger if playhead crosses them
+        """
         self.video_player.step_frame(delta_frames)
 
+    def _programmatic_slider_update(self, time_ms):
+        """
+        Handle programmatic slider updates (from playback loop)
+        Does NOT trigger audio seek
+        """
+        self._slider_update_in_progress = True
+        self.timeline_slider.set(time_ms)
+        self._slider_update_in_progress = False
+
     def on_timeline_change(self, value):
-        """Handle timeline slider change - delegates to VideoPlayerController"""
+        """
+        Handle timeline slider change - delegates to VideoPlayerController
+        Markers will trigger if playhead crosses them during scrubbing
+        """
+        # Skip if this is a programmatic update
+        if self._slider_update_in_progress:
+            return
+
         self.video_player.on_timeline_change(value)
 
     def update_timeline(self):
         """Update timeline position and display - delegates to VideoPlayerController"""
+        # Track if audio was playing before update
+        audio_was_playing = self.assembly_playback.is_playing
+
         # Delegate to video player controller
         self.video_player.update_timeline()
+
+        # Update marker triggering system with current playhead position
+        if self.assembly_playback.is_playing:
+            self.assembly_playback.update_playhead(self.video_player.current_time_ms)
+
+        # If video stopped (reached end), stop marker playback too
+        if audio_was_playing and not self.video_player.is_playing:
+            self.assembly_playback.stop_playback()
+            print("⏹ Video ended - stopped all marker sounds")
 
         # Schedule next update (30 FPS refresh rate)
         self.root.after(33, self.update_timeline)
@@ -898,6 +1003,13 @@ class AudioMapperGUI:
             if duration > 0:
                 position_ratio = time_ms / duration
                 self.video_waveform_display.draw_playhead(position_ratio)
+
+        # Update multi-track display playhead
+        if self.multi_track_display and self.video_player:
+            duration = self.video_player.get_duration()
+            if duration > 0:
+                position_ratio = time_ms / duration
+                self.multi_track_display.draw_playhead(position_ratio)
 
     # ========================================================================
     # FILM STRIP AND WAVEFORM METHODS - Now handled by managers
@@ -1080,6 +1192,30 @@ class AudioMapperGUI:
         self.update_marker_list()
         self.redraw_marker_indicators()
 
+        # Update multi-track display to reflect current markers
+        if self.video_player and self.video_player.is_video_loaded():
+            duration_ms = self.video_player.get_duration()
+            if duration_ms > 0:
+                # Re-assign markers to tracks (updates track assignments)
+                self.assembly_service.assign_markers_to_tracks(self.markers)
+
+                # Update each track type that has markers
+                marker_types = set(m.get('type') for m in self.markers if m.get('type'))
+                for marker_type in marker_types:
+                    self._update_track_display_for_marker_type(marker_type)
+
+                # Also clear tracks that no longer have markers
+                all_track_ids = [
+                    self.assembly_service.TRACK_MUSIC_LR,
+                    self.assembly_service.TRACK_SFX_1,
+                    self.assembly_service.TRACK_SFX_2,
+                    self.assembly_service.TRACK_VOICE
+                ]
+                for track_id in all_track_ids:
+                    if not self.assembly_service.track_assignments.get(track_id):
+                        self.multi_track_display.clear_waveform(track_id)
+                        self.multi_track_display.clear_marker_indicators(track_id)
+
     def update_marker_list(self):
         """Refresh marker list with custom row widgets"""
         # Clear existing row widgets
@@ -1180,6 +1316,121 @@ class AudioMapperGUI:
                 width=filmstrip_width_val,
                 tags=("marker", f"marker_{i}")
             )
+
+    def update_marker_waveform_in_track(self, marker_index):
+        """
+        Update waveform for a single marker in its assigned track.
+        Called automatically after marker audio is generated.
+
+        Args:
+            marker_index: Index of marker that was just generated
+        """
+        if marker_index < 0 or marker_index >= len(self.markers):
+            return
+
+        marker = self.markers[marker_index]
+
+        # Get current version data with audio file
+        current_version_data = self.get_current_version_data(marker)
+        if not current_version_data:
+            return
+
+        asset_file = current_version_data.get('asset_file')
+        if not asset_file:
+            return
+
+        # Find the audio file
+        marker_type = marker.get('type', 'sfx')
+        possible_paths = [
+            os.path.join("generated_audio", marker_type, asset_file),
+            os.path.join("generated_audio", asset_file),
+            asset_file
+        ]
+
+        audio_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                audio_path = path
+                break
+
+        if not audio_path:
+            print(f"Audio file not found for marker {marker_index}: {asset_file}")
+            return
+
+        try:
+            # Trigger full track update for this marker type
+            self._update_track_display_for_marker_type(marker_type)
+            print(f"✓ Updated waveform for marker {marker_index} in multi-track display")
+
+        except Exception as e:
+            print(f"Error updating waveform for marker {marker_index}: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _update_track_display_for_marker_type(self, marker_type):
+        """
+        Update the track display for all markers of a given type.
+        This regenerates the mixed waveform for the entire track.
+
+        Args:
+            marker_type: 'music', 'sfx', or 'voice'
+        """
+        try:
+            # Get duration
+            duration_ms = self.video_player.get_duration() if self.video_player else 0
+            if duration_ms <= 0:
+                return
+
+            # ALWAYS reassign markers to tracks to ensure assignments are up-to-date
+            # This is critical when new markers are generated after initial assignment
+            self.assembly_service.assign_markers_to_tracks(self.markers)
+
+            # Determine which track(s) to update based on marker type
+            tracks_to_update = []
+            if marker_type == 'music':
+                tracks_to_update = [self.assembly_service.TRACK_MUSIC_LR]
+            elif marker_type == 'sfx':
+                tracks_to_update = [self.assembly_service.TRACK_SFX_1, self.assembly_service.TRACK_SFX_2]
+            elif marker_type == 'voice':
+                tracks_to_update = [self.assembly_service.TRACK_VOICE]
+
+            # Generate and draw waveform for each affected track
+            for track_id in tracks_to_update:
+                markers_in_track = self.assembly_service.track_assignments.get(track_id, [])
+                if not markers_in_track:
+                    continue
+
+                # Generate track audio (returns AudioSegment, not file path)
+                is_stereo = (track_id == self.assembly_service.TRACK_MUSIC_LR)
+                track_audio = self.assembly_service.generate_track_audio(
+                    track_id=track_id,
+                    markers=markers_in_track,
+                    duration_ms=duration_ms,
+                    is_stereo=is_stereo
+                )
+
+                if track_audio:
+                    # Generate waveform directly from AudioSegment
+                    waveform_data = self.assembly_service.generate_waveform_data(track_audio, num_samples=1000)
+
+                    # Debug logging
+                    print(f"Updating track {track_id}: {len(waveform_data)} waveform samples, {len(markers_in_track)} markers")
+
+                    # Draw on multi-track display
+                    channel_type = "stereo" if is_stereo else "mono"
+                    self.multi_track_display.draw_waveform(track_id, waveform_data, channel=channel_type)
+
+                    # Clear old marker indicators before redrawing
+                    self.multi_track_display.clear_marker_indicators(track_id)
+
+                    # Draw marker indicators
+                    self.multi_track_display.draw_marker_indicators(track_id, markers_in_track, duration_ms)
+                    print(f"✓ Track {track_id} updated with waveform and {len(markers_in_track)} marker indicators")
+
+        except Exception as e:
+            print(f"Error updating track display for {marker_type}: {e}")
+            import traceback
+            traceback.print_exc()
 
     def play_marker_audio(self, marker_index):
         """
