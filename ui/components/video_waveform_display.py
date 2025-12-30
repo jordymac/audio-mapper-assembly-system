@@ -32,7 +32,7 @@ class VideoWaveformDisplay:
         self.canvas = tk.Canvas(
             self.container,
             bg=COLORS.bg_primary,
-            height=80,
+            height=40,
             highlightthickness=1,
             highlightbackground=COLORS.border
         )
@@ -84,8 +84,8 @@ class VideoWaveformDisplay:
             points.extend([x, y])
 
         if len(points) >= 4:  # Need at least 2 points
-            # Use accent color for video audio waveform
-            self.canvas.create_line(points, fill=COLORS.accent, width=1, tags="waveform")
+            # Use waveform color for video audio waveform (cyan)
+            self.canvas.create_line(points, fill=COLORS.waveform_color, width=2, tags="waveform")
 
     def draw_playhead(self, position_ratio):
         """
@@ -107,7 +107,7 @@ class VideoWaveformDisplay:
         self.canvas.create_line(
             x_pos, 0,
             x_pos, height,
-            fill=COLORS.accent,
+            fill=COLORS.position_indicator,
             width=2,
             tags="playhead"
         )

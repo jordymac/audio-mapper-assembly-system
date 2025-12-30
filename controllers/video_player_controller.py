@@ -305,7 +305,10 @@ class VideoPlayerController:
             if self.on_timeline_slider_update:
                 self.on_timeline_slider_update(self.current_time_ms)
 
+            # Seek to current position and display frame
             if self.video_capture:
+                frame_number = int((self.current_time_ms / 1000) * self.fps)
+                self.video_capture.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
                 self.display_current_frame()
 
         # Update timestamp

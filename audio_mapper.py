@@ -538,6 +538,10 @@ class AudioMapperGUI:
         self.marker_rows_frame.bind("<Configure>", self.on_marker_frame_configure)
         self.marker_canvas.bind("<Configure>", self.on_marker_canvas_configure)
 
+        # Click on empty space to deselect markers
+        self.marker_canvas.bind("<Button-1>", lambda e: self.marker_selection_manager.deselect_marker() if self.marker_selection_manager else None)
+        self.marker_rows_frame.bind("<Button-1>", lambda e: self.marker_selection_manager.deselect_marker() if self.marker_selection_manager else None)
+
         # Store marker row widgets
         self.marker_row_widgets = []
 
@@ -887,6 +891,13 @@ class AudioMapperGUI:
         """Callback to update waveform position"""
         if self.waveform_manager:
             self.waveform_manager.update_position(time_ms)
+
+        # Update video waveform playhead
+        if self.video_waveform_display and self.video_player:
+            duration = self.video_player.get_duration()
+            if duration > 0:
+                position_ratio = time_ms / duration
+                self.video_waveform_display.draw_playhead(position_ratio)
 
     # ========================================================================
     # FILM STRIP AND WAVEFORM METHODS - Now handled by managers
