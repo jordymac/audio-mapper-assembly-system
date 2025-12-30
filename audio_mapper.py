@@ -749,11 +749,7 @@ class AudioMapperGUI:
             )
             self.filmstrip_manager.draw()
 
-        # Extract and display audio waveform
-        if self.waveform_manager:
-            self.waveform_manager.extract_and_display(filepath)
-
-        # Extract and display video audio waveform
+        # Extract and display video audio waveform (replaces old single-track waveform)
         if self.video_waveform_display:
             self._extract_and_display_video_audio(filepath)
 

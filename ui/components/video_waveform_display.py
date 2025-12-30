@@ -28,27 +28,15 @@ class VideoWaveformDisplay:
         self.container = tk.Frame(parent, bg=COLORS.bg_secondary)
         self.container.pack(fill=tk.X, padx=10, pady=(0, 5))
 
-        # Label
-        label = tk.Label(
-            self.container,
-            text="Video Audio",
-            bg=COLORS.bg_secondary,
-            fg=COLORS.fg_primary,
-            font=("Arial", 9, "bold"),
-            width=12,
-            anchor=tk.W
-        )
-        label.pack(side=tk.LEFT, padx=(0, 5))
-
-        # Waveform canvas
+        # Waveform canvas (full width, no label)
         self.canvas = tk.Canvas(
             self.container,
             bg=COLORS.bg_primary,
-            height=60,
+            height=80,
             highlightthickness=1,
             highlightbackground=COLORS.border
         )
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.canvas.pack(fill=tk.BOTH, expand=True)
         self.canvas.bind("<Button-1>", self._on_canvas_click)
 
     def _on_canvas_click(self, event):
@@ -96,8 +84,8 @@ class VideoWaveformDisplay:
             points.extend([x, y])
 
         if len(points) >= 4:  # Need at least 2 points
-            # Use a light gray color for video audio
-            self.canvas.create_line(points, fill="#888888", width=1, tags="waveform")
+            # Use accent color for video audio waveform
+            self.canvas.create_line(points, fill=COLORS.accent, width=1, tags="waveform")
 
     def draw_playhead(self, position_ratio):
         """

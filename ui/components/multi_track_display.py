@@ -25,9 +25,6 @@ class MultiTrackDisplay:
         {"id": "voice", "label": "Ch 5 (Voice)", "channels": [5], "type": "mono", "height": 45, "color": COLORS.voice_bg},
     ]
 
-    LABEL_WIDTH = 100
-    VOLUME_SLIDER_WIDTH = 100
-
     def __init__(self, parent, on_seek_callback=None):
         """
         Initialize multi-track display
@@ -43,11 +40,8 @@ class MultiTrackDisplay:
         self.container = tk.Frame(parent, bg=COLORS.bg_secondary)
         self.container.pack(fill=tk.X, padx=10, pady=(0, 5))
 
-        # Track widgets: {track_id: {"canvas": Canvas, "volume": Scale, "label": Label}}
+        # Track widgets: {track_id: {"canvas": Canvas, "config": dict}}
         self.track_widgets = {}
-
-        # Volume values: {track_id: IntVar}
-        self.volume_vars = {}
 
         # Build tracks
         self._create_tracks()
@@ -59,81 +53,30 @@ class MultiTrackDisplay:
             self._create_track_row(track_config)
 
     def _create_track_row(self, track_config):
-        """Create a single track row with label, waveform canvas, and volume slider"""
+        """Create a single track row with waveform canvas only"""
         track_id = track_config["id"]
-        label_text = track_config["label"]
         height = track_config["height"]
         color = track_config["color"]
-        is_stereo = track_config["type"] == "stereo"
 
         # Row frame
         row_frame = tk.Frame(self.container, bg=COLORS.bg_secondary, height=height)
         row_frame.pack(fill=tk.X, pady=1)
         row_frame.pack_propagate(False)
 
-        # Left: Track label
-        label_frame = tk.Frame(row_frame, bg=COLORS.bg_secondary, width=self.LABEL_WIDTH)
-        label_frame.pack(side=tk.LEFT, fill=tk.Y)
-        label_frame.pack_propagate(False)
-
-        track_label = tk.Label(
-            label_frame,
-            text=label_text,
-            bg=COLORS.bg_secondary,
-            fg=COLORS.fg_primary,
-            font=("Arial", 9),
-            anchor=tk.W,
-            padx=5
+        # Waveform canvas (full width, no label or volume controls)
+        waveform_canvas = tk.Canvas(
+            row_frame,
+            bg=COLORS.bg_primary,
+            height=height,
+            highlightthickness=1,
+            highlightbackground=COLORS.border
         )
-        track_label.pack(fill=tk.BOTH, expand=True)
-
-        # Middle: Waveform canvas
-        # Both stereo and mono use single canvas (stereo shows combined L+R waveform)
-        if True:  # Always use single canvas
-            # Mono: Single canvas
-            waveform_canvas = tk.Canvas(
-                row_frame,
-                bg=COLORS.bg_primary,
-                height=height,
-                highlightthickness=1,
-                highlightbackground=COLORS.border
-            )
-            waveform_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2)
-            waveform_canvas.bind("<Button-1>", lambda e: self._on_canvas_click(e, waveform_canvas))
-
-        # Right: Volume slider
-        volume_frame = tk.Frame(row_frame, bg=COLORS.bg_secondary, width=self.VOLUME_SLIDER_WIDTH)
-        volume_frame.pack(side=tk.RIGHT, fill=tk.Y)
-        volume_frame.pack_propagate(False)
-
-        # Volume variable (0-100)
-        volume_var = tk.IntVar(value=100)
-        self.volume_vars[track_id] = volume_var
-
-        # Volume icon
-        tk.Label(
-            volume_frame,
-            text="🔊",
-            bg=COLORS.bg_secondary,
-            font=("Arial", 10)
-        ).pack(side=tk.LEFT, padx=2)
-
-        # Volume slider
-        volume_slider = ttk.Scale(
-            volume_frame,
-            from_=0,
-            to=100,
-            orient=tk.HORIZONTAL,
-            variable=volume_var,
-            command=lambda v: self._on_volume_change(track_id, v)
-        )
-        volume_slider.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+        waveform_canvas.pack(fill=tk.BOTH, expand=True)
+        waveform_canvas.bind("<Button-1>", lambda e: self._on_canvas_click(e, waveform_canvas))
 
         # Store widgets
         self.track_widgets[track_id] = {
             "canvas": waveform_canvas,
-            "volume": volume_slider,
-            "label": track_label,
             "config": track_config
         }
 
@@ -152,36 +95,19 @@ class MultiTrackDisplay:
             # The callback will handle converting to actual time
             self.on_seek_callback(click_ratio)
 
-    def _on_volume_change(self, track_id, value):
-        """Handle volume slider change"""
-        # Volume changes are preview-only (don't affect export)
-        # This will be wired to audio playback in Phase 4
-        pass
-
     def get_canvas(self, track_id):
         """
-        Get canvas(es) for a track
+        Get canvas for a track
 
         Args:
             track_id: Track identifier (e.g., "music_lr", "sfx_1")
 
         Returns:
-            Canvas widget (mono) or dict {"L": canvas, "R": canvas} (stereo)
+            Canvas widget
         """
         if track_id not in self.track_widgets:
             return None
         return self.track_widgets[track_id]["canvas"]
-
-    def get_volume(self, track_id):
-        """Get current volume for a track (0-100)"""
-        if track_id not in self.volume_vars:
-            return 100
-        return self.volume_vars[track_id].get()
-
-    def set_volume(self, track_id, volume):
-        """Set volume for a track (0-100)"""
-        if track_id in self.volume_vars:
-            self.volume_vars[track_id].set(volume)
 
     def clear_waveform(self, track_id):
         """Clear waveform on a track"""
