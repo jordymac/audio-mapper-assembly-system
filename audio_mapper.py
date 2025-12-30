@@ -55,6 +55,7 @@ from services.assembly_service import AssemblyService
 from ui.components.tooltip import ToolTip
 from ui.components.marker_row import MarkerRow
 from ui.components.multi_track_display import MultiTrackDisplay
+from ui.components.video_waveform_display import VideoWaveformDisplay
 from ui.editors.prompt_editor import PromptEditorWindow
 
 
@@ -123,6 +124,7 @@ class AudioMapperGUI:
         self.create_menu_bar()
         self.create_video_frame()
         self.create_filmstrip_display()
+        self.create_video_waveform_display()
         self.create_multi_track_display()
         self.create_timeline_controls()
         self.create_marker_list()
@@ -249,6 +251,13 @@ class AudioMapperGUI:
             thumb_height=self.filmstrip_thumb_height,
             on_seek=self._on_filmstrip_seek,
             on_deselect_marker=lambda: self.marker_selection_manager.deselect_marker()
+        )
+
+    def create_video_waveform_display(self):
+        """Create video audio waveform display"""
+        self.video_waveform_display = VideoWaveformDisplay(
+            parent=self.root,
+            on_seek_callback=lambda ratio: self.video_player.seek_to_time(int(ratio * self.video_player.get_duration())) if self.video_player else None
         )
 
     def create_multi_track_display(self):
@@ -743,6 +752,63 @@ class AudioMapperGUI:
         # Extract and display audio waveform
         if self.waveform_manager:
             self.waveform_manager.extract_and_display(filepath)
+
+        # Extract and display video audio waveform
+        if self.video_waveform_display:
+            self._extract_and_display_video_audio(filepath)
+
+    def _extract_and_display_video_audio(self, video_filepath):
+        """
+        Extract audio from video and display waveform
+
+        Args:
+            video_filepath: Path to video file
+        """
+        try:
+            print(f"Extracting audio from video: {video_filepath}")
+
+            # Load video with audio using moviepy
+            clip = VideoFileClip(video_filepath)
+
+            if clip.audio is None:
+                print("No audio track found in video")
+                self.video_waveform_display.clear_waveform()
+                return
+
+            # Get audio samples
+            audio = clip.audio
+            samples = audio.to_soundarray(fps=22050)  # 22kHz sample rate
+
+            # If stereo, average channels
+            if len(samples.shape) > 1 and samples.shape[1] == 2:
+                samples = samples.mean(axis=1)
+
+            # Normalize to -1.0 to 1.0
+            max_val = np.abs(samples).max()
+            if max_val > 0:
+                samples = samples / max_val
+
+            # Downsample to 1000 points for display
+            num_display_samples = 1000
+            if len(samples) > num_display_samples:
+                step = len(samples) / num_display_samples
+                indices = np.arange(num_display_samples) * step
+                indices = indices.astype(int)
+                waveform_data = samples[indices]
+            else:
+                waveform_data = samples
+
+            # Display waveform
+            self.video_waveform_display.draw_waveform(waveform_data.tolist())
+
+            # Close clip to free resources
+            clip.close()
+
+            print("✓ Video audio waveform displayed")
+
+        except Exception as e:
+            print(f"Error extracting video audio: {e}")
+            self.video_waveform_display.clear_waveform()
 
     def create_blank_timeline(self):
         """Create blank timeline without video - delegates to VideoPlayerController"""
