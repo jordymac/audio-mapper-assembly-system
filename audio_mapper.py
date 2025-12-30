@@ -51,8 +51,10 @@ from controllers.file_handler import FileHandler
 from controllers.video_player_controller import VideoPlayerController
 from services.audio_service import AudioGenerationService
 from services.audio_player import AudioPlayer
+from services.assembly_service import AssemblyService
 from ui.components.tooltip import ToolTip
 from ui.components.marker_row import MarkerRow
+from ui.components.multi_track_display import MultiTrackDisplay
 from ui.editors.prompt_editor import PromptEditorWindow
 
 
@@ -88,8 +90,15 @@ class AudioMapperGUI:
         # Audio generation service (extracted for modularity)
         self.audio_service = AudioGenerationService(self)
 
+        # Assembly service (multi-track audio assembly)
+        self.assembly_service = AssemblyService(temp_dir="temp")
+
         # Auto-assembly setting
         self.auto_assemble_enabled = tk.BooleanVar(value=False)
+
+        # Assembly state
+        self.assembled_preview_file = None
+        self.is_assembled = False
 
         # Drag state for marker repositioning
         self.dragging_marker = None
@@ -114,10 +123,10 @@ class AudioMapperGUI:
         self.create_menu_bar()
         self.create_video_frame()
         self.create_filmstrip_display()
-        self.create_waveform_display()
+        self.create_multi_track_display()
         self.create_timeline_controls()
-        self.create_marker_controls()
         self.create_marker_list()
+        self.create_bottom_button_bar()
 
         # Initialize marker selection manager
         self.marker_selection_manager = MarkerSelectionManager(
@@ -242,28 +251,38 @@ class AudioMapperGUI:
             on_deselect_marker=lambda: self.marker_selection_manager.deselect_marker()
         )
 
-    def create_waveform_display(self):
-        """Create waveform visualization canvas"""
-        waveform_container = tk.Frame(self.root, bg=COLORS.bg_secondary)
-        waveform_container.pack(fill=tk.X, padx=10, pady=(0, 5))
-
-        # Waveform canvas
-        self.waveform_canvas = tk.Canvas(
-            waveform_container,
-            bg=COLORS.bg_primary,
-            height=self.waveform_canvas_height,
-            highlightthickness=1,
-            highlightbackground=COLORS.border
+    def create_multi_track_display(self):
+        """Create multi-track waveform display (5 channels)"""
+        # Initialize multi-track display component
+        self.multi_track_display = MultiTrackDisplay(
+            parent=self.root,
+            on_seek_callback=self._on_multitrack_seek
         )
-        self.waveform_canvas.pack(fill=tk.BOTH, expand=True)
 
-        # Initialize waveform manager
-        self.waveform_manager = WaveformManager(
-            canvas=self.waveform_canvas,
-            canvas_height=self.waveform_canvas_height,
-            on_seek=self._on_waveform_seek,
-            on_deselect_marker=lambda: self.marker_selection_manager.deselect_marker()
-        )
+        # Keep waveform_canvas reference for backward compatibility (points to music track for now)
+        # This will be refactored in later phases
+        music_canvas = self.multi_track_display.get_canvas("music_lr")
+        if isinstance(music_canvas, dict):
+            self.waveform_canvas = music_canvas["L"]  # Use L channel as default
+        else:
+            self.waveform_canvas = music_canvas
+
+        # Keep waveform manager for single-track backward compatibility
+        # This will be replaced with multi-track waveform generation in Phase 3
+        if self.waveform_canvas:
+            self.waveform_manager = WaveformManager(
+                canvas=self.waveform_canvas,
+                canvas_height=45,  # Half of stereo height
+                on_seek=self._on_waveform_seek,
+                on_deselect_marker=lambda: self.marker_selection_manager.deselect_marker() if self.marker_selection_manager else None
+            )
+
+    def _on_multitrack_seek(self, click_ratio):
+        """Handle seek from multi-track display click"""
+        if self.video_player:
+            duration_ms = self.video_player.get_duration()
+            time_ms = click_ratio * duration_ms
+            self._on_waveform_seek(time_ms)
 
     def _on_waveform_seek(self, time_ms):
         """Callback when user clicks waveform to seek"""
@@ -318,50 +337,169 @@ class AudioMapperGUI:
         )
         self.timeline_slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-    def create_marker_controls(self):
-        """Create marker input controls - three button design"""
-        marker_frame = tk.LabelFrame(self.root, text="Add Marker", padx=10, pady=10)
-        marker_frame.pack(fill=tk.X, padx=10, pady=5)
+    def create_bottom_button_bar(self):
+        """Create bottom button bar with Add Marker buttons, Assemble, and Export"""
+        button_bar = tk.Frame(self.root, bg=COLORS.bg_secondary, padx=10, pady=10)
+        button_bar.pack(fill=tk.X, side=tk.BOTTOM)
 
-        # Button container
-        button_container = tk.Frame(marker_frame)
-        button_container.pack(fill=tk.X, pady=5)
+        # Left side: Add Marker buttons (smaller, compact)
+        left_buttons = tk.Frame(button_bar, bg=COLORS.bg_secondary)
+        left_buttons.pack(side=tk.LEFT)
 
-        tk.Label(button_container, text="Add Marker:", font=("Arial", 10)).pack(side=tk.LEFT, padx=(0, 10))
-
-        # Three colored buttons for each marker type
         create_colored_button(
-            button_container,
-            text="SFX",
+            left_buttons,
+            text="+SFX",
             command=lambda: self.add_marker_by_type("sfx"),
             bg_color=COLORS.sfx_bg,
             fg_color=COLORS.sfx_fg,
-            font=("Arial", 10, "bold"),
-            width=10,
-            height=2
-        ).pack(side=tk.LEFT, padx=5)
+            font=("Arial", 9, "bold"),
+            width=8,
+            height=1
+        ).pack(side=tk.LEFT, padx=2)
 
         create_colored_button(
-            button_container,
-            text="Music",
+            left_buttons,
+            text="+Music",
             command=lambda: self.add_marker_by_type("music"),
             bg_color=COLORS.music_bg,
             fg_color=COLORS.music_fg,
-            font=("Arial", 10, "bold"),
-            width=10,
-            height=2
-        ).pack(side=tk.LEFT, padx=5)
+            font=("Arial", 9, "bold"),
+            width=8,
+            height=1
+        ).pack(side=tk.LEFT, padx=2)
 
         create_colored_button(
-            button_container,
-            text="Voice",
+            left_buttons,
+            text="+Voice",
             command=lambda: self.add_marker_by_type("voice"),
             bg_color=COLORS.voice_bg,
             fg_color=COLORS.voice_fg,
-            font=("Arial", 10, "bold"),
-            width=10,
-            height=2
+            font=("Arial", 9, "bold"),
+            width=8,
+            height=1
+        ).pack(side=tk.LEFT, padx=2)
+
+        # Right side: Assemble and Export buttons
+        right_buttons = tk.Frame(button_bar, bg=COLORS.bg_secondary)
+        right_buttons.pack(side=tk.RIGHT)
+
+        # Assemble button (will be implemented in Phase 4)
+        self.assemble_button = create_colored_button(
+            right_buttons,
+            text="🔨 Assemble",
+            command=self.assemble_audio,
+            bg_color=COLORS.btn_success_bg,
+            fg_color=COLORS.btn_success_fg,
+            font=("Arial", 9, "bold"),
+            width=12,
+            height=1
+        )
+        self.assemble_button.pack(side=tk.LEFT, padx=5)
+
+        # Export button
+        create_colored_button(
+            right_buttons,
+            text="📦 Export",
+            command=self.open_export_center,
+            bg_color=COLORS.btn_primary_bg,
+            fg_color=COLORS.btn_primary_fg,
+            font=("Arial", 9, "bold"),
+            width=12,
+            height=1
         ).pack(side=tk.LEFT, padx=5)
+
+    def assemble_audio(self):
+        """Assemble multi-track audio from all markers"""
+        # Check if we have markers
+        if not self.markers:
+            messagebox.showwarning("Assembly", "No markers to assemble. Add some markers first!")
+            return
+
+        # Check if video is loaded (need duration)
+        if not self.video_player or not self.video_player.is_video_loaded():
+            messagebox.showwarning("Assembly", "Please load a video first to get duration.")
+            return
+
+        # Get duration
+        duration_ms = self.video_player.get_duration()
+
+        # Check if any markers have generated audio
+        markers_with_audio = [m for m in self.markers if m.asset_file and os.path.exists(m.asset_file)]
+        if not markers_with_audio:
+            response = messagebox.askyesno(
+                "Assembly",
+                "No markers have generated audio yet.\n\nWould you like to generate all missing audio first?"
+            )
+            if response:
+                # Trigger batch generation
+                self.batch_generate_missing()
+                return
+            else:
+                return
+
+        try:
+            # Show assembly progress
+            messagebox.showinfo("Assembly", "Assembling audio tracks...\n\nThis may take a moment.")
+
+            # Call assembly service
+            track_files, preview_file = self.assembly_service.assemble_audio(
+                markers=self.markers,
+                duration_ms=duration_ms
+            )
+
+            # Store preview file
+            self.assembled_preview_file = preview_file
+            self.is_assembled = True
+
+            # Update button text
+            self.assemble_button.config(text="🔄 Re-assemble")
+
+            # Generate waveforms for each track
+            print("Generating track waveforms...")
+            track_waveforms = self.assembly_service.get_track_waveforms(track_files, num_samples=1000)
+
+            # Draw waveforms on multi-track display
+            for track_id, waveform_data in track_waveforms.items():
+                if "L" in waveform_data and "R" in waveform_data:
+                    # Stereo track (music)
+                    self.multi_track_display.draw_waveform(track_id, waveform_data["L"], channel="L")
+                    self.multi_track_display.draw_waveform(track_id, waveform_data["R"], channel="R")
+                elif "mono" in waveform_data:
+                    # Mono track
+                    self.multi_track_display.draw_waveform(track_id, waveform_data["mono"], channel="mono")
+
+            # Draw marker indicators on tracks
+            self._draw_marker_indicators_on_tracks(duration_ms)
+
+            # Show summary
+            summary = self.assembly_service.get_track_assignment_summary()
+            messagebox.showinfo(
+                "Assembly Complete",
+                f"✓ Assembly successful!\n\n{summary}\n\nWaveforms displayed on tracks!"
+            )
+
+            # TODO Phase 4: Replace video player audio with assembled preview
+
+        except Exception as e:
+            messagebox.showerror("Assembly Error", f"Failed to assemble audio:\n\n{str(e)}")
+            print(f"Assembly error: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _draw_marker_indicators_on_tracks(self, duration_ms):
+        """Draw marker indicators on their assigned tracks"""
+        if not self.is_assembled or not self.assembly_service.track_assignments:
+            return
+
+        # Draw markers on each track
+        for track_id, markers in self.assembly_service.track_assignments.items():
+            if markers:
+                self.multi_track_display.draw_marker_indicators(track_id, markers, duration_ms)
+
+    def open_export_center(self):
+        """Open Export Center window (to be implemented)"""
+        # Placeholder for Export Center
+        messagebox.showinfo("Export", "Export Center coming soon!")
 
     def create_marker_list(self):
         """Create marker list display with custom interactive rows"""

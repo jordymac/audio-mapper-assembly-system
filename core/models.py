@@ -179,6 +179,8 @@ class Marker:
     status: str = MarkerStatus.NOT_GENERATED.value
     current_version: int = 1
     versions: List[AudioVersion] = field(default_factory=list)
+    assigned_track: Optional[str] = None  # e.g., "music_lr", "sfx_1", "sfx_2", "voice"
+    assigned_channels: Optional[List[int]] = None  # e.g., [1, 2] for stereo, [3] for mono
 
     def __post_init__(self):
         """Validate and convert after initialization"""

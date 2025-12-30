@@ -1,6 +1,6 @@
 # Audio Mapper & Assembly System - Development Roadmap
 
-**Last Updated**: 2025-12-29
+**Last Updated**: 2025-12-30
 
 This document outlines planned improvements, known issues, and feature ideas for the Audio Mapper & Assembly System.
 
@@ -76,6 +76,64 @@ This document outlines planned improvements, known issues, and feature ideas for
 
 ---
 
+### 3. Export Center & Metadata Workflow 📋 SPEC COMPLETE (2025-12-30)
+**Goal**: Create professional export workflow with metadata tagging and organized file structure for ingest team handoff.
+
+**Solution Designed**:
+- ✅ Dedicated Export Center window (File → Export Center, Cmd+E)
+- ✅ Non-linear metadata editing (jump between markers)
+- ✅ Type-specific category taxonomies (38 SFX categories from ElevenLabs)
+- ✅ Assembly preview with video sync validation
+- ✅ Organized export structure (MUSIC/, SFX/, VOICE/ folders)
+- ✅ Individual + assembled metadata JSON files
+
+**Comprehensive Specs Created**:
+- 📄 `docs/ASSEMBLY_PLAN.md` - Multi-track assembly preview in main window
+- 📄 `docs/METADATA_EXPORT_PLAN.md` - Export Center workflow and metadata structures
+
+**Key Features**:
+- Left panel: Marker list with completion checkmarks
+- Right panel: Metadata editor (title, categories, notes, waveform, play)
+- Bottom section: Assembly preview + export button
+- Export creates organized folder with audio files + metadata JSONs
+
+**Category Taxonomies**:
+- **SFX**: 38 categories (UI Elements, Foley, Impacts, Nature, etc.)
+- **Music**: Genre + Mood + Tempo + Intensity
+- **Voice**: Gender + Age + Accent + Tone + Delivery
+
+**Implementation Status**:
+- [x] Requirements gathered
+- [x] Assembly Plan complete (multi-track preview design)
+- [x] Metadata Export Plan complete (Export Center design)
+- [x] UI/UX designed (both assembly and export workflows)
+- [x] Metadata structures defined
+- [x] Category taxonomies finalized (SFX extracted from ElevenLabs)
+- [x] Channel configuration finalized (stereo music + mono SFX/Voice)
+- [x] Phase 1: Multi-track UI implemented (5 tracks with labels & volume sliders)
+- [x] Phase 2: Assembly logic implemented (track assignment + audio generation)
+- [x] Phase 3: Multi-track waveform visualization (waveforms + marker indicators)
+- [ ] Phase 4: Playback integration (replace video audio with assembled preview)
+- [ ] Phase 5: Export Center UI implementation
+- [ ] Phase 6: Export functionality (metadata JSON generation)
+- [ ] Phase 7: Polish & testing
+
+**Files to Create/Modify**:
+
+**Phase 1-2: Assembly Preview**
+- `audio_mapper.py` - Multi-track waveform display, Assemble button UI
+- `managers/waveform_manager.py` - Multi-track waveform generation
+- `assemble_audio.py` - Multi-channel assembly logic (5-channel WAV)
+- NEW: `ui/components/multi_track_display.py` - Multi-track visualization component
+
+**Phase 3-4: Export Center & Metadata**
+- NEW: `core/categories.py` - Category constants (38 SFX categories, etc.)
+- `core/models.py` - Add metadata fields to Marker class
+- NEW: `ui/export/export_center.py` - Export Center window
+- `managers/file_handler.py` - Export folder structure logic, metadata JSON generation
+
+---
+
 ## 🎨 UI/UX Issues
 
 ### 3. Button Styling & UI Consistency ✅ COMPLETE (2025-12-29)
@@ -109,7 +167,7 @@ This document outlines planned improvements, known issues, and feature ideas for
 
 ---
 
-### 4. Generation Progress Feedback
+### 4. Generation Progress Feedback ✅ COMPLETE (2025-12-30)
 **Problem**: When user presses 'G' to generate audio, there's no visual feedback that generation has started or is in progress.
 
 **User Experience Issue**:
@@ -118,8 +176,8 @@ This document outlines planned improvements, known issues, and feature ideas for
 - User doesn't know if key was registered
 - No indication of progress or completion
 
-**Proposed Solution**:
-Show progress bar in waveform column during generation, then replace with actual waveform on completion.
+**Implemented Solution**:
+Progress bar shown in waveform column during generation, replaced with actual waveform on completion.
 
 **Design**: Waveform Column Progress Bar
 ```
@@ -139,21 +197,21 @@ Show progress bar in waveform column during generation, then replace with actual
 - Supports batch generation (multiple progress bars visible simultaneously)
 - Error states can show in same column (red bar or error icon)
 
-**Related Feature**: This sets up the waveform column for future audio preview (#9), where clicking the waveform will play the audio.
+**Related Feature**: This enables the waveform column for audio preview (#9), where clicking the waveform plays the audio.
 
-**Implementation Tasks**:
-- [ ] Add progress bar rendering in waveform column
-- [ ] Show progress percentage during generation (0-100%)
-- [ ] Replace progress bar with waveform on completion
-- [ ] Add timeout handling (30s max)
-- [ ] Show error state in waveform column if generation fails
-- [ ] Support batch generation (multiple progress bars visible)
+**Completed Implementation**:
+- [x] Add progress bar rendering in waveform column
+- [x] Show progress percentage during generation (0-100%)
+- [x] Replace progress bar with waveform on completion
+- [x] Add timeout handling (30s max)
+- [x] Show error state in waveform column if generation fails
+- [x] Support batch generation (multiple progress bars visible)
 
-**Files Affected**:
-- `services/audio_service.py` - Add progress callbacks during generation
-- `ui/components/marker_row.py` - Render progress bar in waveform column
-- `managers/waveform_manager.py` - Coordinate progress → waveform transition
-- `audio_mapper.py` - Wire up generation progress updates
+**Files Modified**:
+- `services/audio_service.py` - Added progress callbacks during generation
+- `ui/components/marker_row.py` - Progress bar rendering in waveform column
+- `managers/waveform_manager.py` - Progress → waveform transition coordination
+- `audio_mapper.py` - Generation progress update wiring
 
 ---
 
@@ -261,63 +319,28 @@ Bars: [32]
 
 ## 🔧 Technical Improvements
 
-### 7. Metadata Management
-**Current Issues**:
-- [ ] `asset_id` field usage unclear
-- [ ] `status` field not consistently updated
-- [ ] Version history not tracked in template
-- [ ] No creation/modification timestamps
+### 7. Metadata Management → See Export Center (#3)
+**Status**: Comprehensive metadata system designed as part of Export Center workflow.
 
-**Proposed Metadata Schema**:
-```json
-{
-  "time_ms": 150,
-  "type": "sfx",
-  "name": "SFX_00001_UI_Click",
-  "prompt_data": {...},
+📄 **See `docs/METADATA_EXPORT_PLAN.md` for complete metadata structures**
 
-  "asset_slot": "sfx_0",
-  "asset_file": "SFX_00000.mp3",
+**Key Changes from Old Approach**:
+- Metadata captured during export (not during editing)
+- Type-specific categorization (SFX/Music/Voice have different fields)
+- Individual JSON files per audio file (not embedded in template)
+- Separate assembled audio metadata JSON
 
-  "metadata": {
-    "createdAt": "2025-12-28T10:00:00Z",
-    "modifiedAt": "2025-12-28T11:30:00Z",
-    "status": "generated",  // not_generated | generating | generated | failed
-    "currentVersion": 2,
-    "versions": [
-      {
-        "versionNumber": 1,
-        "asset_id": "elevenlabs-abc123",
-        "asset_file": "SFX_00000_v1.mp3",
-        "generatedAt": "2025-12-28T10:05:00Z",
-        "prompt_data": {...}  // Snapshot of prompt used
-      },
-      {
-        "versionNumber": 2,
-        "asset_id": "elevenlabs-xyz789",
-        "asset_file": "SFX_00000_v2.mp3",
-        "generatedAt": "2025-12-28T11:30:00Z",
-        "prompt_data": {...}
-      }
-    ]
-  }
-}
-```
+**What's Defined**:
+- ✅ Metadata fields for SFX, Music, Voice, Assembled audio
+- ✅ Category taxonomies (38 SFX categories, Music genres/moods, Voice attributes)
+- ✅ Export file structure (organized folders with metadata)
+- ✅ Validation rules for required/optional fields
 
-**Benefits**:
-- Full version history with prompts
-- Rollback to previous versions
-- Track what prompts generated what audio
-- Proper status tracking
-
-**Migration Strategy**:
-- [ ] Auto-migrate old format on import
-- [ ] Maintain backward compatibility
-- [ ] Default values for missing metadata
-
-**Files Affected**:
-- `audio_mapper.py` - All marker creation/edit logic
-- Template JSON schema
+**Implementation Plan**:
+- Part of Export Center implementation (#3)
+- Phase 1: Add metadata fields to Marker class
+- Phase 2: Export Center UI for metadata editing
+- Phase 4: Generate metadata JSON files on export
 
 ---
 
@@ -344,10 +367,10 @@ Bars: [32]
 ---
 
 
-### 9. Audio Preview
-**Goal**: Play generated audio directly in the tool.
+### 9. Audio Preview in Marker Section ✅ COMPLETE (2025-12-30)
+**Goal**: Play generated audio directly in the tool from marker rows.
 
-**Related Feature**: Builds on generation progress feedback (#4) - the waveform column will already show waveforms, this makes them clickable/playable.
+**Related Feature**: Builds on generation progress feedback (#4) - the waveform column shows waveforms, this makes them clickable/playable.
 
 **Waveform Column Evolution**:
 ```
@@ -357,36 +380,25 @@ Bars: [32]
 4. Playable:   [~waveform~visual~] ▶️  (click to play - this feature)
 ```
 
-**Features**:
-- [ ] Click waveform to play/pause audio
-- [ ] Play button next to each marker (alternative to clicking waveform)
-- [ ] Scrub to marker position + auto-play
-- [ ] Volume control
-- [ ] Solo/mute tracks (Music/SFX/Voice)
+**Implemented Features**:
+- [x] Click waveform to play/pause audio
+- [x] Waveform visualization in marker rows
+- [x] Playback integration with marker system
+- [ ] Play button next to each marker (alternative to clicking waveform) - Not needed, waveform click works well
+- [ ] Scrub to marker position + auto-play - Future enhancement
+- [ ] Volume control - Future enhancement
+- [ ] Solo/mute tracks (Music/SFX/Voice) - Future enhancement
 
-**Implementation**:
-- Use `pygame` or `pydub` for playback
-- Display waveform using `matplotlib` or `PIL`
+**Implementation Details**:
+- Uses `pygame` for audio playback
+- Waveform visualization integrated in marker row component
+- Click waveform to toggle play/pause
+- Visual feedback during playback
 
-**Files Affected**:
-- `audio_mapper.py` - Playback controls
-- NEW: `audio_player.py` - Playback logic
-
----
-
-### 11. Batch Operations
-**Goal**: Apply operations to multiple markers at once.
-
-**Features**:
-- [ ] Select multiple markers (Ctrl+Click)
-- [ ] Bulk delete
-- [ ] Bulk regenerate
-- [ ] Bulk tag/categorize
-- [ ] Apply template to multiple markers
-
-**Files Affected**:
-- `audio_mapper.py` - Marker list selection logic
-- `batch_progress_window.py` - Reuse for bulk ops
+**Files Modified**:
+- `ui/components/marker_row.py` - Waveform click handlers and playback controls
+- `managers/waveform_manager.py` - Waveform display integration
+- Audio playback logic integrated into marker row system
 
 ---
 
@@ -409,21 +421,18 @@ Bars: [32]
 ## 🎯 Priority Matrix
 
 ### High Priority (Do Next)
-1. **Music Assembly Timing** (#2) - Core functionality unclear
-2. **Remaining UI/UX Polish** (#3) - Dark mode support, hover states
-3. **Generation Progress Feedback** (#4) - User needs feedback when pressing G
+1. **Export Center & Metadata Workflow** (#3) - Critical for ingest team handoff
+2. **Music Assembly Timing** (#2) - Core functionality for music markers
+3. **Remaining UI/UX Polish** (#4) - Dark mode support, hover states
 
 ### Medium Priority
 4. **BPM & Bar-Based Sections** (#5) - Quality of life improvement
-5. **Metadata Management** (#7) - Foundation for future features
+5. **Auto-Save Implementation** (#8) - Prevent data loss
+6. **Prompt Library** (#6) - Reusable templates for faster workflow
 
 ### Low Priority (Nice to Have)
-6. **Prompt Library** (#6) - Can work around manually
-7. **Audio Preview** (#9) - Can preview externally
-
-### Future / Research Needed
-8. **Batch Operations** (#11) - Requires selection UI design
-9. **Variation Management UI** (#12) - Depends on metadata work
+7. **Batch Operations** (#11) - Requires selection UI design
+8. **Variation Management UI** (#12) - Depends on metadata work
 
 ---
 
@@ -434,18 +443,22 @@ When starting next work session, tackle in this order:
 **Immediate (This Week)**:
 - [x] ~~Fix versioning bug (Issue #1)~~ ✅ COMPLETE
 - [x] ~~Button styling and UI consistency (Issue #3)~~ ✅ COMPLETE
-- [ ] Define music assembly timing behavior (Issue #2)
-- [ ] Add generation loading indicator (Issue #4)
+- [x] ~~Add generation loading indicator (Issue #4)~~ ✅ COMPLETE
+- [x] ~~Audio preview in marker section (Issue #9)~~ ✅ COMPLETE
+- [x] ~~Design Export Center & Metadata workflow (Issue #3)~~ ✅ COMPLETE
+- [ ] Implement Export Center Phase 1: Data structures
 - [ ] Complete remaining UI polish (dark mode, hover states)
 
 **Short Term (Next 2 Weeks)**:
-- [ ] Design + implement BPM/bar input (Issue #5)
-- [ ] Implement enhanced metadata schema (Issue #7)
+- [ ] Implement Export Center Phase 2: UI window
+- [ ] Implement Export Center Phase 3: Assembly preview
+- [ ] Implement Export Center Phase 4: Export functionality
+- [ ] Define music assembly timing behavior (Issue #2)
 
 **Medium Term (Next Month)**:
+- [ ] Export Center Phase 5: Polish & testing
+- [ ] Design + implement BPM/bar input (Issue #5)
 - [ ] Design prompt library system (Issue #6)
-- [ ] Implement template save/load (Issue #6)
-- [ ] Add audio preview (Issue #9)
 
 ---
 
