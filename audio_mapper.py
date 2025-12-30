@@ -62,7 +62,7 @@ class AudioMapperGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Audio Mapper - Timecode Mapping Tool")
-        self.root.geometry("1200x800")
+        self.root.geometry("1200x900")
 
         # Video player controller (initialized after UI creation)
         self.video_player = None
@@ -261,11 +261,7 @@ class AudioMapperGUI:
 
         # Keep waveform_canvas reference for backward compatibility (points to music track for now)
         # This will be refactored in later phases
-        music_canvas = self.multi_track_display.get_canvas("music_lr")
-        if isinstance(music_canvas, dict):
-            self.waveform_canvas = music_canvas["L"]  # Use L channel as default
-        else:
-            self.waveform_canvas = music_canvas
+        self.waveform_canvas = self.multi_track_display.get_canvas("music_lr")
 
         # Keep waveform manager for single-track backward compatibility
         # This will be replaced with multi-track waveform generation in Phase 3
@@ -460,10 +456,9 @@ class AudioMapperGUI:
 
             # Draw waveforms on multi-track display
             for track_id, waveform_data in track_waveforms.items():
-                if "L" in waveform_data and "R" in waveform_data:
-                    # Stereo track (music)
-                    self.multi_track_display.draw_waveform(track_id, waveform_data["L"], channel="L")
-                    self.multi_track_display.draw_waveform(track_id, waveform_data["R"], channel="R")
+                if "stereo" in waveform_data:
+                    # Stereo track (music) - single combined waveform
+                    self.multi_track_display.draw_waveform(track_id, waveform_data["stereo"], channel="stereo")
                 elif "mono" in waveform_data:
                     # Mono track
                     self.multi_track_display.draw_waveform(track_id, waveform_data["mono"], channel="mono")
@@ -537,23 +532,10 @@ class AudioMapperGUI:
         # Store marker row widgets
         self.marker_row_widgets = []
 
-        # Right side panel - Export and batch operations
+        # Right side panel - Batch operations
         export_container = tk.Frame(main_container, padx=10, width=180)
         export_container.pack(side=tk.RIGHT, fill=tk.Y)
         export_container.pack_propagate(False)
-
-        # Export button with symbol and text
-        export_btn = create_colored_button(
-            export_container,
-            text="⬇\nExport\nJSON",
-            command=self.export_json,
-            bg_color=COLORS.btn_primary_bg,
-            fg_color=COLORS.btn_primary_fg,
-            font=("Arial", 9, "bold"),
-            width=18,
-            height=4
-        )
-        export_btn.pack(pady=(0, 10), fill=tk.X)
 
         # Batch operation buttons - stacked vertically
         create_colored_button(

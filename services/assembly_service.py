@@ -336,7 +336,7 @@ class AssemblyService:
 
         Returns:
             Dict mapping track_id to waveform data
-            For stereo tracks: {"L": [...], "R": [...]}
+            For stereo tracks: {"stereo": [...]}  (averaged L+R)
             For mono tracks: {"mono": [...]}
         """
         waveforms = {}
@@ -351,25 +351,23 @@ class AssemblyService:
 
                 # Generate waveform based on channel count
                 if audio.channels == 2 and track_id == self.TRACK_MUSIC_LR:
-                    # Stereo: separate L and R channels
+                    # Stereo: average L and R channels into single waveform
                     samples = np.array(audio.get_array_of_samples())
                     samples = samples.reshape((-1, 2))
 
-                    # Left channel
+                    # Average L and R channels
                     left_samples = samples[:, 0]
-                    max_val = np.abs(left_samples).max()
-                    if max_val > 0:
-                        left_samples = left_samples / max_val
-                    waveforms[track_id] = {
-                        "L": self._downsample_waveform(left_samples, num_samples)
-                    }
-
-                    # Right channel
                     right_samples = samples[:, 1]
-                    max_val = np.abs(right_samples).max()
+                    stereo_avg = (left_samples + right_samples) / 2
+
+                    # Normalize
+                    max_val = np.abs(stereo_avg).max()
                     if max_val > 0:
-                        right_samples = right_samples / max_val
-                    waveforms[track_id]["R"] = self._downsample_waveform(right_samples, num_samples)
+                        stereo_avg = stereo_avg / max_val
+
+                    waveforms[track_id] = {
+                        "stereo": self._downsample_waveform(stereo_avg, num_samples)
+                    }
                 else:
                     # Mono
                     waveform_data = self.generate_waveform_data(audio, num_samples)

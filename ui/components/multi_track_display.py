@@ -88,36 +88,8 @@ class MultiTrackDisplay:
         track_label.pack(fill=tk.BOTH, expand=True)
 
         # Middle: Waveform canvas
-        if is_stereo:
-            # Stereo: Create 2 canvases stacked vertically (L on top, R on bottom)
-            canvas_container = tk.Frame(row_frame, bg=COLORS.bg_primary)
-            canvas_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2)
-
-            # L channel (top)
-            canvas_l = tk.Canvas(
-                canvas_container,
-                bg=COLORS.bg_primary,
-                height=height // 2,
-                highlightthickness=1,
-                highlightbackground=COLORS.border
-            )
-            canvas_l.pack(fill=tk.BOTH, expand=True, pady=(0, 1))
-            canvas_l.bind("<Button-1>", lambda e: self._on_canvas_click(e, canvas_l))
-
-            # R channel (bottom)
-            canvas_r = tk.Canvas(
-                canvas_container,
-                bg=COLORS.bg_primary,
-                height=height // 2,
-                highlightthickness=1,
-                highlightbackground=COLORS.border
-            )
-            canvas_r.pack(fill=tk.BOTH, expand=True)
-            canvas_r.bind("<Button-1>", lambda e: self._on_canvas_click(e, canvas_r))
-
-            # Store both canvases
-            waveform_canvas = {"L": canvas_l, "R": canvas_r}
-        else:
+        # Both stereo and mono use single canvas (stereo shows combined L+R waveform)
+        if True:  # Always use single canvas
             # Mono: Single canvas
             waveform_canvas = tk.Canvas(
                 row_frame,
@@ -217,13 +189,7 @@ class MultiTrackDisplay:
             return
 
         canvas = self.track_widgets[track_id]["canvas"]
-        if isinstance(canvas, dict):
-            # Stereo: clear both L and R
-            canvas["L"].delete("all")
-            canvas["R"].delete("all")
-        else:
-            # Mono: clear single canvas
-            canvas.delete("all")
+        canvas.delete("all")
 
     def clear_all_waveforms(self):
         """Clear all track waveforms"""
@@ -237,22 +203,12 @@ class MultiTrackDisplay:
         Args:
             track_id: Track identifier
             waveform_data: List of amplitude values (normalized -1 to 1)
-            channel: "mono", "L", or "R" (for stereo tracks)
+            channel: "mono" or "stereo" (stereo data should be pre-averaged)
         """
         if track_id not in self.track_widgets:
             return
 
-        canvas_widget = self.track_widgets[track_id]["canvas"]
-
-        # Get appropriate canvas
-        if isinstance(canvas_widget, dict):
-            # Stereo track
-            if channel not in ["L", "R"]:
-                return
-            canvas = canvas_widget[channel]
-        else:
-            # Mono track
-            canvas = canvas_widget
+        canvas = self.track_widgets[track_id]["canvas"]
 
         # Clear existing waveform
         canvas.delete("waveform")
@@ -294,55 +250,36 @@ class MultiTrackDisplay:
         if track_id not in self.track_widgets:
             return
 
-        canvas_widget = self.track_widgets[track_id]["canvas"]
+        canvas = self.track_widgets[track_id]["canvas"]
         color = self.track_widgets[track_id]["config"]["color"]
 
-        # Get canvas(es)
-        canvases = []
-        if isinstance(canvas_widget, dict):
-            # Stereo: draw on both L and R
-            canvases = [canvas_widget["L"], canvas_widget["R"]]
-        else:
-            # Mono: single canvas
-            canvases = [canvas_widget]
+        canvas.update_idletasks()
+        width = canvas.winfo_width()
+        height = canvas.winfo_height()
 
-        for canvas in canvases:
-            canvas.update_idletasks()
-            width = canvas.winfo_width()
-            height = canvas.winfo_height()
+        if width <= 0 or duration_ms <= 0:
+            return
 
-            if width <= 0 or duration_ms <= 0:
-                continue
+        # Draw vertical line for each marker
+        for marker in markers:
+            x_pos = (marker.time_ms / duration_ms) * width
 
-            # Draw vertical line for each marker
-            for marker in markers:
-                x_pos = (marker.time_ms / duration_ms) * width
-
-                # Draw vertical line
-                canvas.create_line(
-                    x_pos, 0,
-                    x_pos, height,
-                    fill=color,
-                    width=2,
-                    tags="marker_indicator"
-                )
+            # Draw vertical line
+            canvas.create_line(
+                x_pos, 0,
+                x_pos, height,
+                fill=color,
+                width=2,
+                tags="marker_indicator"
+            )
 
     def clear_marker_indicators(self, track_id):
         """Clear marker indicators from a track"""
         if track_id not in self.track_widgets:
             return
 
-        canvas_widget = self.track_widgets[track_id]["canvas"]
-
-        # Get canvas(es)
-        canvases = []
-        if isinstance(canvas_widget, dict):
-            canvases = [canvas_widget["L"], canvas_widget["R"]]
-        else:
-            canvases = [canvas_widget]
-
-        for canvas in canvases:
-            canvas.delete("marker_indicator")
+        canvas = self.track_widgets[track_id]["canvas"]
+        canvas.delete("marker_indicator")
 
     def destroy(self):
         """Clean up resources"""
