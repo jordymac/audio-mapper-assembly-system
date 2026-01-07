@@ -5,7 +5,7 @@ Tkinter-based application for mapping audio markers to video timecodes
 """
 
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, simpledialog
 import json
 import os
 import sys
@@ -58,6 +58,7 @@ from ui.components.marker_row import MarkerRow
 from ui.components.multi_track_display import MultiTrackDisplay
 from ui.components.video_waveform_display import VideoWaveformDisplay
 from ui.editors.prompt_editor import PromptEditorWindow
+from ui.export.export_center_window import ExportCenterWindow
 
 
 class AudioMapperGUI:
@@ -333,7 +334,7 @@ class AudioMapperGUI:
         """Create video audio waveform display"""
         self.video_waveform_display = VideoWaveformDisplay(
             parent=self.root,
-            on_seek_callback=lambda ratio: self.video_player.seek_to_time(int(ratio * self.video_player.get_duration())) if self.video_player else None
+            on_seek_callback=lambda ratio: self._on_waveform_seek(int(ratio * self.video_player.get_duration())) if self.video_player else None
         )
 
     def create_multi_track_display(self):
@@ -348,15 +349,9 @@ class AudioMapperGUI:
         # This will be refactored in later phases
         self.waveform_canvas = self.multi_track_display.get_canvas("music_lr")
 
-        # Keep waveform manager for single-track backward compatibility
-        # This will be replaced with multi-track waveform generation in Phase 3
-        if self.waveform_canvas:
-            self.waveform_manager = WaveformManager(
-                canvas=self.waveform_canvas,
-                canvas_height=45,  # Half of stereo height
-                on_seek=self._on_waveform_seek,
-                on_deselect_marker=lambda: self.marker_selection_manager.deselect_marker() if self.marker_selection_manager else None
-            )
+        # NOTE: WaveformManager removed to prevent click event conflicts
+        # MultiTrackDisplay now handles all waveform display and interaction
+        self.waveform_manager = None
 
     def _on_multitrack_seek(self, click_ratio):
         """Handle seek from multi-track display click"""
@@ -368,17 +363,38 @@ class AudioMapperGUI:
     def _on_waveform_seek(self, time_ms):
         """Callback when user clicks waveform to seek"""
         self.seek_to_time(time_ms)
+
+        # Update slider without triggering callback
+        self._slider_update_in_progress = True
         self.timeline_slider.set(self.video_player.get_current_time())
+        self._slider_update_in_progress = False
+
+        # Update waveform playhead indicators
+        self._update_waveform_position(self.video_player.get_current_time())
 
     def _on_filmstrip_seek(self, time_ms):
         """Callback when user clicks filmstrip to seek"""
         self.seek_to_time(time_ms)
+
+        # Update slider without triggering callback
+        self._slider_update_in_progress = True
         self.timeline_slider.set(self.video_player.get_current_time())
+        self._slider_update_in_progress = False
+
+        # Update waveform playhead indicators
+        self._update_waveform_position(self.video_player.get_current_time())
 
     def _on_marker_seek(self, time_ms):
         """Callback when jumping to a marker"""
         self.seek_to_time(time_ms)
+
+        # Update slider without triggering callback
+        self._slider_update_in_progress = True
         self.timeline_slider.set(self.video_player.get_current_time())
+        self._slider_update_in_progress = False
+
+        # Update waveform playhead indicators
+        self._update_waveform_position(self.video_player.get_current_time())
 
     def create_bottom_button_bar(self):
         """Create bottom button bar with Add Marker buttons, Assemble, and Export"""
@@ -542,9 +558,82 @@ class AudioMapperGUI:
                 self.multi_track_display.draw_marker_indicators(track_id, markers, duration_ms)
 
     def open_export_center(self):
-        """Open Export Center window (to be implemented)"""
-        # Placeholder for Export Center
-        messagebox.showinfo("Export", "Export Center coming soon!")
+        """Open Export Center - metadata editing and export"""
+        # Check if there are markers
+        if not self.markers:
+            messagebox.showwarning("No Markers", "Add some markers before exporting")
+            return
+
+        # Check if video is loaded or duration is set
+        if not self.video_player or not self.video_player.is_video_loaded():
+            messagebox.showwarning("No Video", "Load a video or create a blank timeline before exporting")
+            return
+
+        # Get duration in milliseconds
+        duration_ms = self.video_player.get_duration_ms()
+        if duration_ms <= 0:
+            messagebox.showwarning("Invalid Duration", "Video duration is invalid")
+            return
+
+        # Prompt for template info if not set
+        if not self.template_id:
+            template_id = simpledialog.askstring(
+                "Template ID",
+                "Enter Template ID (e.g., DM01):",
+                initialvalue=""
+            )
+            if not template_id:
+                return  # User cancelled
+            self.template_id = template_id
+
+        if not self.template_name:
+            template_name = simpledialog.askstring(
+                "Template Name",
+                "Enter Template Name (e.g., Indoor Routine):",
+                initialvalue=""
+            )
+            if template_name:
+                self.template_name = template_name
+
+        # Get video reference (filename)
+        video_reference = ""
+        if self.video_player and self.video_player.get_video_path():
+            import os
+            video_path = self.video_player.get_video_path()
+            if video_path:
+                video_reference = os.path.basename(video_path)
+
+        # Debug: Print marker info
+        print(f"\n=== Opening Export Center ===")
+        print(f"Total markers: {len(self.markers)}")
+        for i, m in enumerate(self.markers[:3]):  # Show first 3
+            if isinstance(m, dict):
+                print(f"  Marker {i}: type={m.get('type')}, versions={len(m.get('versions', []))}")
+            else:
+                print(f"  Marker {i}: type={m.type}, versions={len(m.versions)}")
+
+        # Open Export Center window
+        try:
+            ExportCenterWindow(
+                parent=self.root,
+                markers=self.markers,
+                template_id=self.template_id,
+                template_name=self.template_name,
+                duration_ms=duration_ms,
+                video_reference=video_reference,
+                assembly_service=self.assembly_service,
+                on_export_complete=self.on_export_complete
+            )
+        except Exception as e:
+            import traceback
+            print(f"Error opening Export Center: {e}")
+            traceback.print_exc()
+            messagebox.showerror("Export Error", f"Failed to open export window:\n\n{str(e)}")
+
+    def on_export_complete(self, result):
+        """Callback after export completes"""
+        print(f"Export complete: {result['output_dir']}")
+        # Could add additional post-export actions here
 
     def create_marker_list(self):
         """Create marker list display with custom interactive rows"""
@@ -914,7 +1003,6 @@ class AudioMapperGUI:
 
             # Toggle video playback
             self.video_player.toggle_playback()
-            print(f"Video playback toggled: is_playing={self.video_player.is_playing}")
 
             # Handle marker-triggered playback
             if self.video_player.is_playing and not was_playing:
@@ -922,14 +1010,14 @@ class AudioMapperGUI:
                 self.assembly_playback.set_markers(self.markers)
                 self.assembly_playback.preload_marker_sounds()
                 self.assembly_playback.start_playback()
-                print(f"🎵 Started marker-triggered playback ({len(self.markers)} markers)")
+                print(f"▶ Started playback ({len(self.markers)} markers)")
             elif not self.video_player.is_playing and was_playing:
                 # Paused or stopped - stop all triggered sounds immediately
                 self.assembly_playback.stop_playback()
-                print("⏸ Paused - stopped all marker sounds")
+                print("⏸ Paused playback")
 
         except Exception as e:
-            print(f"Error in toggle_playback: {e}")
+            print(f"❌ Error in toggle_playback: {e}")
             import traceback
             traceback.print_exc()
 
@@ -967,25 +1055,39 @@ class AudioMapperGUI:
 
         self.video_player.on_timeline_change(value)
 
+        # Update waveform playhead indicators to match slider position
+        self._update_waveform_position(self.video_player.get_current_time())
+
     def update_timeline(self):
         """Update timeline position and display - delegates to VideoPlayerController"""
-        # Track if audio was playing before update
-        audio_was_playing = self.assembly_playback.is_playing
+        try:
+            # Track if audio was playing before update
+            audio_was_playing = self.assembly_playback.is_playing
+            video_was_playing = self.video_player.is_playing
 
-        # Delegate to video player controller
-        self.video_player.update_timeline()
+            # Delegate to video player controller
+            self.video_player.update_timeline()
 
-        # Update marker triggering system with current playhead position
-        if self.assembly_playback.is_playing:
-            self.assembly_playback.update_playhead(self.video_player.current_time_ms)
+            # Update marker triggering system with current playhead position
+            if self.assembly_playback.is_playing:
+                self.assembly_playback.update_playhead(self.video_player.current_time_ms)
+            elif video_was_playing and not audio_was_playing:
+                # Video is playing but assembly playback is not - auto-recover
+                self.assembly_playback.set_markers(self.markers)
+                self.assembly_playback.start_playback()
 
-        # If video stopped (reached end), stop marker playback too
-        if audio_was_playing and not self.video_player.is_playing:
-            self.assembly_playback.stop_playback()
-            print("⏹ Video ended - stopped all marker sounds")
+            # If video stopped (reached end), stop marker playback too
+            if audio_was_playing and not self.video_player.is_playing:
+                self.assembly_playback.stop_playback()
+                print("⏹ Video ended - stopped all marker sounds")
 
-        # Schedule next update (30 FPS refresh rate)
-        self.root.after(33, self.update_timeline)
+        except Exception as e:
+            print(f"❌ ERROR in update_timeline: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            # ALWAYS schedule next update, even if there was an error
+            self.root.after(33, self.update_timeline)
 
     def _update_filmstrip_position(self, time_ms):
         """Callback to update filmstrip position"""
@@ -994,9 +1096,6 @@ class AudioMapperGUI:
 
     def _update_waveform_position(self, time_ms):
         """Callback to update waveform position"""
-        if self.waveform_manager:
-            self.waveform_manager.update_position(time_ms)
-
         # Update video waveform playhead
         if self.video_waveform_display and self.video_player:
             duration = self.video_player.get_duration()
@@ -1004,7 +1103,7 @@ class AudioMapperGUI:
                 position_ratio = time_ms / duration
                 self.video_waveform_display.draw_playhead(position_ratio)
 
-        # Update multi-track display playhead
+        # Update multi-track display playhead (this handles all 5 tracks including music_lr)
         if self.multi_track_display and self.video_player:
             duration = self.video_player.get_duration()
             if duration > 0:
@@ -1037,19 +1136,20 @@ class AudioMapperGUI:
     # ========================================================================
 
     def extract_and_display_waveform(self, video_filepath):
-        """Extract audio from video and display waveform - delegates to WaveformManager"""
-        if self.waveform_manager:
-            self.waveform_manager.extract_and_display(video_filepath)
+        """Legacy method - waveform now handled by MultiTrackDisplay"""
+        # This method is deprecated - video audio waveform is now displayed separately
+        # and multi-track waveforms are generated during assembly
+        pass
 
     def draw_waveform(self):
-        """Draw waveform on canvas - delegates to WaveformManager"""
-        if self.waveform_manager:
-            self.waveform_manager.draw()
+        """Legacy method - waveform now handled by MultiTrackDisplay"""
+        # This method is deprecated - waveforms are drawn by MultiTrackDisplay
+        pass
 
     def update_waveform_position(self):
-        """Update position indicator on waveform - delegates to WaveformManager"""
-        if self.waveform_manager:
-            self.waveform_manager.update_position(self.video_player.get_current_time())
+        """Legacy method - position updates now handled by MultiTrackDisplay"""
+        # This method is deprecated - position is updated via _update_waveform_position callback
+        pass
 
     def on_waveform_resize(self, event):
         """Handle waveform canvas resize - redraw markers (waveform handled by manager)"""

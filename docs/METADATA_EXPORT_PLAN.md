@@ -58,8 +58,9 @@ This document defines the metadata structures, category taxonomies, and export w
 │  │                 │  │ ┌───────────────────────────────────┐   ││
 │  │ 🔊 SFX          │  │ │ Title: ____________________       │   ││
 │  │ ✓ SFX_00001     │  │ │ Categories: [▼] [▼] [▼]           │   ││
-│  │ ✓ SFX_00012     │  │ │ Notes: ____________________       │   ││
-│  │   SFX_00013     │  │ │ Used in: DM01                     │   ││
+│  │ ✓ SFX_00012     │  │ │ Tier: ○ Free  ● Pro               │   ││
+│  │   SFX_00013     │  │ │ Notes: ____________________       │   ││
+│  │                 │  │ │ Used in: DM01                     │   ││
 │  │                 │  │ └───────────────────────────────────┘   ││
 │  │ 🎤 VOICE        │  │                                         ││
 │  │ ✓ VOX_00001     │  │ Waveform: [~~~~~~∿∿∿~~~~~~]            ││
@@ -92,6 +93,7 @@ This document defines the metadata structures, category taxonomies, and export w
 6. **Edit Metadata**: Right panel shows editable fields
    - Title (required)
    - Categories (type-specific fields)
+   - **Tier** (required): Select ○ Free or ● Pro (radio buttons)
    - Notes (optional, freeform text)
    - Used In Templates (auto-populated, shows current + any other templates using this asset)
    - Waveform visualization
@@ -119,18 +121,69 @@ This document defines the metadata structures, category taxonomies, and export w
 
 ## Metadata Structures
 
-### SFX Metadata
+### Architecture: Separation of Asset vs Template Data
+
+**Critical Design Principle:**
+Assets (audio files) have **global properties** (categories, pro_tier, voice_id) that are the same regardless of which template uses them. However, **template-specific data** (timestamp, script_text for voice) varies per usage.
+
+**Two-Level Structure:**
+
+1. **Asset Metadata** (`{AUDIO_FILE}_metadata.json`):
+   - Global properties: categories, title, notes, pro_tier, speaker_voice_id
+   - `usedInTemplates` array: Tracks where this asset is used
+     - Each entry contains: `template_id`, `timestamp_ms`, and (for voice) `script_text`
+
+2. **Template Data** (`{TEMPLATE_ID}_template.json`):
+   - Contains markers with timestamp_ms and references to asset files
+   - Template-level context (what's used where)
+
+**Why This Matters:**
+- Same SFX can be used in multiple templates at different timestamps
+- Same voice actor can speak different scripts in different templates
+- Asset metadata stays clean and focused on the audio properties
+- Template data stays focused on placement and context
+
+**Quick Reference - What Goes Where:**
+
+| Property | Asset Metadata (Global) | Template Usage (Per-Use) |
+|----------|-------------------------|--------------------------|
+| **timestamp_ms** | ❌ | ✅ In `usedInTemplates[].timestamp_ms` |
+| **script_text** (voice) | ❌ | ✅ In `usedInTemplates[].script_text` |
+| **speaker_voice_id** (voice) | ✅ In `categories.speaker_voice_id` | ❌ |
+| **categories** | ✅ | ❌ |
+| **pro_tier** | ✅ In `categories.pro_tier` | ❌ |
+| **title** | ✅ | ❌ |
+| **notes** | ✅ | ❌ |
+| **duration_ms** | ✅ (audio file length) | ❌ |
+
+---
+
+### SFX Metadata (Asset-Level)
+
+**File**: `SFX_00001_metadata.json`
 
 ```json
 {
   "file": "SFX_00001_UI_Click.mp3",
   "type": "sfx",
-  "timestamp_ms": 150,
   "duration_ms": 250,
   "title": "UI Click Sound",
-  "categories": ["UI Elements", "Devices"],
+  "categories": {
+    "categories": ["UI Elements", "Devices"],
+    "duration_s": 0.25,
+    "pro_tier": false
+  },
   "notes": "Clean, subtle click for button interactions",
-  "usedInTemplates": ["DM01", "DM03", "MTG01"],
+  "usedInTemplates": [
+    {
+      "template_id": "DM01",
+      "timestamp_ms": 150
+    },
+    {
+      "template_id": "DM03",
+      "timestamp_ms": 1200
+    }
+  ],
   "generated_at": "2025-12-30T10:30:00Z",
   "prompt_used": {
     "description": "UI click, subtle, clean"
@@ -138,27 +191,32 @@ This document defines the metadata structures, category taxonomies, and export w
 }
 ```
 
-**Fields**:
+**Fields** (Asset-Level - Global):
 - `file` (string, required): Generated audio filename
 - `type` (string, required): Always "sfx"
-- `timestamp_ms` (integer, required): Position in video timeline
 - `duration_ms` (integer, required): Length of audio file
 - `title` (string, required): Human-readable name
-- `categories` (array, required): 1-3 categories from SFX taxonomy
+- `categories` (object, required): Structured SFX categorization
+  - `categories` (array, required): 1-3 categories from SFX taxonomy
+  - `duration_s` (float, required): Expected duration in seconds
+  - `pro_tier` (boolean, required): Whether this is Pro tier for Canva (true) or Free tier (false)
 - `notes` (string, optional): Freeform description/usage notes
-- `usedInTemplates` (array, required): List of template IDs using this asset
+- `usedInTemplates` (array, required): List of template usage records
+  - `template_id` (string): Template using this asset
+  - `timestamp_ms` (integer): Where it's used in that template
 - `generated_at` (ISO 8601, required): Generation timestamp
 - `prompt_used` (object, required): Original prompt data used for generation
 
 ---
 
-### Music Metadata
+### Music Metadata (Asset-Level)
+
+**File**: `MUS_00001_metadata.json`
 
 ```json
 {
   "file": "MUS_00001_Electronic_Upbeat.mp3",
   "type": "music",
-  "timestamp_ms": 0,
   "duration_ms": 12500,
   "title": "Electronic Upbeat Intro",
   "categories": {
@@ -168,10 +226,20 @@ This document defines the metadata structures, category taxonomies, and export w
     "bpm": 128,
     "instruments": ["Synthesizer", "Drums", "Bass"],
     "mood": ["Energetic", "Upbeat"],
-    "intensity": "Moderate"
+    "intensity": "Moderate",
+    "pro_tier": true
   },
   "notes": "High-energy intro, works well for tech/lifestyle content",
-  "usedInTemplates": ["DM01", "MTG01"],
+  "usedInTemplates": [
+    {
+      "template_id": "DM01",
+      "timestamp_ms": 0
+    },
+    {
+      "template_id": "MTG01",
+      "timestamp_ms": 500
+    }
+  ],
   "generated_at": "2025-12-30T10:30:00Z",
   "prompt_used": {
     "positiveGlobalStyles": ["electronic", "fast-paced", "energetic"],
@@ -181,10 +249,9 @@ This document defines the metadata structures, category taxonomies, and export w
 }
 ```
 
-**Fields**:
+**Fields** (Asset-Level - Global):
 - `file` (string, required): Generated audio filename
 - `type` (string, required): Always "music"
-- `timestamp_ms` (integer, required): Position in video timeline
 - `duration_ms` (integer, required): Length of audio file
 - `title` (string, required): Human-readable name
 - `categories` (object, required): Structured music categorization
@@ -195,31 +262,48 @@ This document defines the metadata structures, category taxonomies, and export w
   - `instruments` (array, 1-5 items): Primary instruments featured
   - `mood` (array, 1-3 items): Emotional quality
   - `intensity` (string, 1 item): Energy level
+  - `pro_tier` (boolean, required): Whether this is Pro tier for Canva (true) or Free tier (false)
 - `notes` (string, optional): Freeform description/usage notes
-- `usedInTemplates` (array, required): List of template IDs using this asset
+- `usedInTemplates` (array, required): List of template usage records
+  - `template_id` (string): Template using this asset
+  - `timestamp_ms` (integer): Where it's used in that template
 - `generated_at` (ISO 8601, required): Generation timestamp
 - `prompt_used` (object, required): Original prompt data used for generation
 
 ---
 
-### Voice Metadata
+### Voice Metadata (Asset-Level)
+
+**File**: `VOX_00001_metadata.json`
 
 ```json
 {
   "file": "VOX_00001_Female_30s_Australian.mp3",
   "type": "voice",
-  "timestamp_ms": 2000,
   "duration_ms": 3500,
   "title": "Camera Roll Quote",
   "categories": {
     "gender": "Female",
-    "age": "Young Adult",
+    "age": "Young Adult (20-35)",
     "accent": "Australian",
     "tone": "Warm",
-    "delivery": "Narration"
+    "delivery": "Narration",
+    "speaker_voice_id": "female_narrator_01",
+    "pro_tier": false
   },
   "notes": "First-person narration, conversational style",
-  "usedInTemplates": ["DM01"],
+  "usedInTemplates": [
+    {
+      "template_id": "DM01",
+      "timestamp_ms": 2000,
+      "script_text": "Camera roll lately..."
+    },
+    {
+      "template_id": "DM02",
+      "timestamp_ms": 1500,
+      "script_text": "Different script for DM02"
+    }
+  ],
   "generated_at": "2025-12-30T10:30:00Z",
   "prompt_used": {
     "voice_profile": "Warm female narrator, mid-30s, Australian accent",
@@ -228,10 +312,9 @@ This document defines the metadata structures, category taxonomies, and export w
 }
 ```
 
-**Fields**:
+**Fields** (Asset-Level - Global):
 - `file` (string, required): Generated audio filename
 - `type` (string, required): Always "voice"
-- `timestamp_ms` (integer, required): Position in video timeline
 - `duration_ms` (integer, required): Length of audio file
 - `title` (string, required): Human-readable name
 - `categories` (object, required): Structured voice categorization
@@ -240,10 +323,15 @@ This document defines the metadata structures, category taxonomies, and export w
   - `accent` (string, 1 item): Regional accent
   - `tone` (string, 1 item): Vocal quality
   - `delivery` (string, 1 item): Performance style
+  - `speaker_voice_id` (string, optional): Voice talent or character identifier (GLOBAL)
+  - `pro_tier` (boolean, required): Whether this is Pro tier for Canva (true) or Free tier (false)
 - `notes` (string, optional): Freeform description/usage notes
-- `usedInTemplates` (array, required): List of template IDs using this asset
+- `usedInTemplates` (array, required): List of template usage records
+  - `template_id` (string): Template using this asset
+  - `timestamp_ms` (integer): Where it's used in that template
+  - `script_text` (string): The spoken text in THIS template (TEMPLATE-SPECIFIC)
 - `generated_at` (ISO 8601, required): Generation timestamp
-- `prompt_used` (object, required): Original prompt data used for generation
+- `prompt_used` (object, required): Original prompt data used for generation (from first use)
 
 ---
 
@@ -584,50 +672,96 @@ DM01_Indoor_Routine/
 - Max selections enforced (e.g., 1-3 for SFX categories)
 
 **Validation Rules**:
-- SFX: 1-3 categories required
-- Music: Genre + Sub-genre + Key + BPM + 1-5 Instruments + 1-3 Moods + Intensity
-- Voice: All 5 category fields required (gender, age, accent, tone, delivery)
-- Title: Always required, max 100 characters
-- Notes: Optional, max 500 characters
+- **SFX**: 1-3 categories required, duration_s must be numeric, **Pro/Free tier required (radio button)**
+- **Music**: Genre + Sub-genre + Key + BPM + 1-5 Instruments + 1-3 Moods + Intensity + **Pro/Free tier required (radio button)**
+- **Voice**: All 5 category fields required (gender, age, accent, tone, delivery), script_text optional, speaker_voice_id optional, **Pro/Free tier required (radio button)**
+- **Title**: Always required, max 100 characters
+- **Notes**: Optional, max 500 characters
+- **Tier**: Required for all types (Free or Pro, defaults to Pro)
 
 ### "Used In Templates" Tracking
 
-**Purpose**: Track which templates use each audio asset for reuse and library management.
+**Purpose**: Track which templates use each audio asset for reuse and library management, including template-specific usage data.
+
+**Data Structure**:
+```json
+"usedInTemplates": [
+  {
+    "template_id": "DM01",
+    "timestamp_ms": 150,
+    "script_text": "Camera roll lately..."  // Voice only
+  },
+  {
+    "template_id": "DM03",
+    "timestamp_ms": 1200,
+    "script_text": "Different script"  // Voice only
+  }
+]
+```
 
 **How It Works**:
-1. **On First Export**: `usedInTemplates` initialized with current template ID
+1. **On First Export**: `usedInTemplates` initialized with current template usage
    ```json
-   "usedInTemplates": ["DM01"]
+   "usedInTemplates": [
+     {
+       "template_id": "DM01",
+       "timestamp_ms": 150
+     }
+   ]
    ```
 
 2. **When Reusing Asset** (future "Existing Library" feature):
-   - User loads audio from library into new template
-   - Template ID automatically added to array
+   - User loads audio from library into new template at specific timestamp
+   - New usage record added to array
    ```json
-   "usedInTemplates": ["DM01", "DM03", "MTG01"]
+   "usedInTemplates": [
+     {"template_id": "DM01", "timestamp_ms": 150},
+     {"template_id": "DM03", "timestamp_ms": 1200},
+     {"template_id": "MTG01", "timestamp_ms": 500}
+   ]
    ```
 
-3. **Display in Export Center**:
-   - Shows "Used in: DM01, DM03, MTG01" (read-only)
-   - Helps user understand asset reuse
-   - Warns if editing metadata will affect multiple templates
+3. **Voice-Specific**: For voice assets, `script_text` is included per template
+   ```json
+   "usedInTemplates": [
+     {
+       "template_id": "DM01",
+       "timestamp_ms": 2000,
+       "script_text": "Camera roll lately..."
+     },
+     {
+       "template_id": "DM02",
+       "timestamp_ms": 1500,
+       "script_text": "Looking back at this year..."
+     }
+   ]
+   ```
 
-4. **Export Behavior**:
-   - Each template export updates the asset's metadata file
-   - Array maintains complete usage history
-   - No duplicates (set-like behavior)
+4. **Display in Export Center**:
+   - Shows "Used in: DM01 (0:00.150), DM03 (0:01.200), MTG01 (0:00.500)"
+   - For voice: Shows script text per template
+   - Helps user understand asset reuse and context
+   - Warns if editing global metadata will affect multiple templates
+
+5. **Export Behavior**:
+   - Each template export updates/adds to the asset's `usedInTemplates` array
+   - Array maintains complete usage history with timestamps
+   - No duplicate template_ids (updates existing entry if already present)
 
 **Benefits**:
-- Know which templates depend on an asset
+- Know which templates depend on an asset AND where (timestamp)
+- For voice: See all scripts this voice actor has performed
 - Avoid accidentally deleting assets still in use
 - Understand asset popularity/reusability
 - Foundation for future "Asset Library" feature
+- Template-specific data (timestamp, script) separated from global asset properties
 
 **Future "Existing Library" Feature**:
 - Browse all previously generated assets
 - Filter by type, categories, templates used
-- Drag existing asset into new template
-- Automatically updates `usedInTemplates` array
+- Drag existing asset into new template at specific timestamp
+- Automatically updates `usedInTemplates` array with new usage record
+- For voice: Can reuse same voice actor with different script
 - Prevents regeneration of identical audio
 
 ---

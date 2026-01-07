@@ -116,7 +116,8 @@ class MusicPromptData:
 
 
 # Type alias for prompt data union
-PromptData = SFXPromptData | VoicePromptData | MusicPromptData
+from typing import Union
+PromptData = Union[SFXPromptData, VoicePromptData, MusicPromptData]
 
 
 # ============================================================================
@@ -182,6 +183,14 @@ class Marker:
     assigned_track: Optional[str] = None  # e.g., "music_lr", "sfx_1", "sfx_2", "voice"
     assigned_channels: Optional[List[int]] = None  # e.g., [1, 2] for stereo, [3] for mono
 
+    # Metadata fields for export (METADATA_EXPORT_PLAN.md)
+    title: str = ""  # Human-readable name for export
+    categories: Dict[str, Any] = field(default_factory=dict)  # Type-specific categorization
+    notes: str = ""  # Optional freeform description
+    used_in_templates: List[str] = field(default_factory=list)  # Template IDs using this asset
+    generated_at: Optional[str] = None  # ISO 8601 timestamp
+    duration_ms: int = 0  # Audio file duration
+
     def __post_init__(self):
         """Validate and convert after initialization"""
         # Validate type
@@ -232,7 +241,13 @@ class Marker:
             "asset_id": self.asset_id,
             "status": self.status,
             "current_version": self.current_version,
-            "versions": [v.to_dict() for v in self.versions]
+            "versions": [v.to_dict() for v in self.versions],
+            "title": self.title,
+            "categories": self.categories.copy(),
+            "notes": self.notes,
+            "used_in_templates": self.used_in_templates.copy(),
+            "generated_at": self.generated_at,
+            "duration_ms": self.duration_ms
         }
 
     @classmethod
@@ -255,7 +270,13 @@ class Marker:
             asset_id=data.get("asset_id"),
             status=data.get("status", MarkerStatus.NOT_GENERATED.value),
             current_version=data.get("current_version", 1),
-            versions=versions
+            versions=versions,
+            title=data.get("title", ""),
+            categories=data.get("categories", {}).copy() if isinstance(data.get("categories"), dict) else {},
+            notes=data.get("notes", ""),
+            used_in_templates=data.get("used_in_templates", []).copy() if isinstance(data.get("used_in_templates"), list) else [],
+            generated_at=data.get("generated_at"),
+            duration_ms=data.get("duration_ms", 0)
         )
 
     @staticmethod

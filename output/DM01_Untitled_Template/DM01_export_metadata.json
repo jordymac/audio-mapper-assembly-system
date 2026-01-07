@@ -1,0 +1,38 @@
+{
+  "template_id": "DM01",
+  "template_name": "Untitled Template",
+  "total_duration_ms": 13066,
+  "video_reference": "2025-12-26_14-19-17.mp4",
+  "marker_count": {
+    "music": 1,
+    "sfx": 1,
+    "voice": 0,
+    "total": 2
+  },
+  "markers_included": [
+    "blip_v1.mp3",
+    "city pop_v1.mp3"
+  ],
+  "assembled_file": "DM01_assembled.wav",
+  "export_format": {
+    "channels": 5,
+    "channel_map": {
+      "1": "music_left",
+      "2": "music_right",
+      "3": "sfx_1",
+      "4": "sfx_2",
+      "5": "voice"
+    },
+    "channel_types": {
+      "1-2": "stereo",
+      "3": "mono",
+      "4": "mono",
+      "5": "mono"
+    },
+    "sample_rate": 48000,
+    "bit_depth": 24
+  },
+  "exported_at": "2025-12-31T14:25:44.411804",
+  "exported_by": "Audio Mapper v1.0",
+  "version": "1.0"
+}

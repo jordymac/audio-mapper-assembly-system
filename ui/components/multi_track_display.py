@@ -115,7 +115,7 @@ class MultiTrackDisplay:
             return
 
         canvas = self.track_widgets[track_id]["canvas"]
-        canvas.delete("all")
+        canvas.delete("waveform")
 
     def clear_all_waveforms(self):
         """Clear all track waveforms"""
@@ -132,6 +132,7 @@ class MultiTrackDisplay:
             channel: "mono" or "stereo" (stereo data should be pre-averaged)
         """
         if track_id not in self.track_widgets:
+            print(f"Warning: track_id '{track_id}' not found in track_widgets")
             return
 
         canvas = self.track_widgets[track_id]["canvas"]
@@ -140,6 +141,7 @@ class MultiTrackDisplay:
         canvas.delete("waveform")
 
         if not waveform_data or len(waveform_data) == 0:
+            print(f"Warning: No waveform data for track {track_id}")
             return
 
         # Get canvas dimensions
@@ -148,6 +150,7 @@ class MultiTrackDisplay:
         height = canvas.winfo_height()
 
         if width <= 0 or height <= 0:
+            print(f"Warning: Invalid canvas dimensions for track {track_id}: {width}x{height}")
             return
 
         # Draw waveform
@@ -163,6 +166,9 @@ class MultiTrackDisplay:
             # Get track color
             color = self.track_widgets[track_id]["config"]["color"]
             canvas.create_line(points, fill=color, width=1, tags="waveform")
+            print(f"✓ Drew waveform for track {track_id}: {len(waveform_data)} samples, canvas {width}x{height}")
+        else:
+            print(f"Warning: Not enough points to draw waveform for track {track_id}: {len(points)} points")
 
     def draw_marker_indicators(self, track_id, markers, duration_ms):
         """
@@ -174,6 +180,7 @@ class MultiTrackDisplay:
             duration_ms: Total duration for position calculation
         """
         if track_id not in self.track_widgets:
+            print(f"Warning: track_id '{track_id}' not found when drawing marker indicators")
             return
 
         canvas = self.track_widgets[track_id]["canvas"]
@@ -184,11 +191,15 @@ class MultiTrackDisplay:
         height = canvas.winfo_height()
 
         if width <= 0 or duration_ms <= 0:
+            print(f"Warning: Invalid dimensions for marker indicators on track {track_id}: width={width}, duration={duration_ms}")
             return
 
         # Draw vertical line for each marker
+        marker_count = 0
         for marker in markers:
-            x_pos = (marker.time_ms / duration_ms) * width
+            # Handle both dict and object markers
+            time_ms = marker.get('time_ms', 0) if isinstance(marker, dict) else marker.time_ms
+            x_pos = (time_ms / duration_ms) * width
 
             # Draw vertical line
             canvas.create_line(
@@ -198,6 +209,9 @@ class MultiTrackDisplay:
                 width=2,
                 tags="marker_indicator"
             )
+            marker_count += 1
+
+        print(f"✓ Drew {marker_count} marker indicators on track {track_id}")
 
     def clear_marker_indicators(self, track_id):
         """Clear marker indicators from a track"""
@@ -205,7 +219,39 @@ class MultiTrackDisplay:
             return
 
         canvas = self.track_widgets[track_id]["canvas"]
+        deleted_count = len(canvas.find_withtag("marker_indicator"))
         canvas.delete("marker_indicator")
+        print(f"✓ Cleared {deleted_count} marker indicators from track {track_id}")
+
+    def draw_playhead(self, position_ratio):
+        """
+        Draw playhead position indicator on all tracks
+
+        Args:
+            position_ratio: Current position (0.0 to 1.0)
+        """
+        for track_id, widgets in self.track_widgets.items():
+            canvas = widgets["canvas"]
+
+            # Delete old playhead
+            canvas.delete("playhead")
+
+            # Get canvas width
+            canvas_width = canvas.winfo_width()
+            if canvas_width <= 1:
+                canvas_width = 1200  # Default width
+
+            # Calculate x position
+            x_pos = int(position_ratio * canvas_width)
+
+            # Draw playhead line (red, thin, prominent)
+            canvas.create_line(
+                x_pos, 0,
+                x_pos, canvas.winfo_height(),
+                fill="#FF0000",
+                width=2,
+                tags="playhead"
+            )
 
     def destroy(self):
         """Clean up resources"""

@@ -349,6 +349,9 @@ class AudioGenerationService:
         # Hide progress bar after a short delay
         self.gui.root.after(500, lambda: self.gui.hide_marker_progress(marker_index))
 
+        # **NEW: Automatically update waveform in multi-track display**
+        self.gui.root.after(100, lambda: self.gui.update_marker_waveform_in_track(marker_index))
+
         # Show success message
         marker = self.gui.markers[marker_index]
         marker_name = marker.get('name', '(unnamed)')
@@ -726,6 +729,9 @@ class AudioGenerationService:
         # Update UI
         self.gui.update_marker_list()
 
+        # Update waveform in multi-track display
+        self.gui.update_marker_waveform_in_track(marker_idx)
+
     # ========================================================================
     # AUDIO ASSEMBLY
     # ========================================================================
@@ -739,13 +745,27 @@ class AudioGenerationService:
             return
 
         # Only assemble if there are markers with generated audio
-        has_audio = any(
-            self.gui.get_current_version_data(m) and
-            self.gui.get_current_version_data(m).get('status') == 'generated'
-            for m in self.gui.markers
-        )
+        try:
+            has_audio = False
+            for idx, m in enumerate(self.gui.markers):
+                version_data = self.gui.get_current_version_data(m)
+                print(f"DEBUG: Marker {idx} version_data type: {type(version_data)}, value: {version_data}")
+                if version_data:
+                    if not isinstance(version_data, dict):
+                        print(f"ERROR: version_data for marker {idx} is not a dict! Type: {type(version_data)}")
+                        continue
+                    status = version_data.get('status')
+                    if status == 'generated':
+                        has_audio = True
+                        break
+        except Exception as e:
+            print(f"ERROR in auto_assemble_audio has_audio check: {e}")
+            import traceback
+            traceback.print_exc()
+            return
 
         if not has_audio:
+            print("DEBUG: No generated audio found, skipping assembly")
             return
 
         # Perform assembly
@@ -797,13 +817,24 @@ class AudioGenerationService:
 
             # Collect markers with generated audio
             markers_with_audio = []
-            for marker in self.gui.markers:
-                current_version_data = self.gui.get_current_version_data(marker)
-                if current_version_data:
-                    status = current_version_data.get('status')
-                    asset_file = current_version_data.get('asset_file')
-                    if status == 'generated' and asset_file:
-                        markers_with_audio.append((marker, asset_file))
+            for idx, marker in enumerate(self.gui.markers):
+                try:
+                    # Debug: check marker type
+                    if not isinstance(marker, dict):
+                        print(f"WARNING: Marker at index {idx} is not a dict: {type(marker)} = {marker}")
+                        continue
+
+                    current_version_data = self.gui.get_current_version_data(marker)
+                    if current_version_data:
+                        status = current_version_data.get('status')
+                        asset_file = current_version_data.get('asset_file')
+                        if status == 'generated' and asset_file:
+                            markers_with_audio.append((marker, asset_file))
+                except Exception as e:
+                    print(f"Error processing marker at index {idx}: {e}")
+                    print(f"Marker type: {type(marker)}, value: {marker}")
+                    import traceback
+                    traceback.print_exc()
 
             if not markers_with_audio:
                 messagebox.showinfo(
@@ -855,7 +886,7 @@ class AudioGenerationService:
 
             # Generate output filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            template_name = self.gui.template_name.get() or "audio_map"
+            template_name = self.gui.template_name or "audio_map"  # template_name is a string, not StringVar
             output_filename = f"{template_name}_{timestamp}_assembled.wav"
             output_path = os.path.join(output_dir, output_filename)
 
@@ -863,6 +894,10 @@ class AudioGenerationService:
             print(f"Exporting to {output_path}...")
             assembled.export(output_path, format="wav")
             print("✓ Assembly complete!")
+
+            # Update GUI state with assembled file path
+            self.gui.assembled_preview_file = output_path
+            self.gui.is_assembled = True
 
             # Show success message (only if manual)
             if not auto:
@@ -875,6 +910,9 @@ class AudioGenerationService:
                 )
 
         except Exception as e:
+            print(f"ERROR in _assemble_audio_internal: {e}")
+            import traceback
+            traceback.print_exc()
             messagebox.showerror(
                 "Assembly Failed",
                 f"Failed to assemble audio:\n\n{str(e)}"

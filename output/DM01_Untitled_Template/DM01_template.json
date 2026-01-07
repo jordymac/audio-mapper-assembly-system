@@ -1,0 +1,106 @@
+{
+  "template_id": "DM01",
+  "template_name": "Untitled Template",
+  "duration_ms": 13066,
+  "markers": [
+    {
+      "time_ms": 5465,
+      "type": "sfx",
+      "name": "blip",
+      "prompt_data": {
+        "description": "blip"
+      },
+      "asset_slot": "sfx_0",
+      "asset_file": "SFX_00000_v1.mp3",
+      "asset_id": null,
+      "status": "not yet generated",
+      "current_version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "asset_file": "blip_v1.mp3",
+          "asset_id": "sfx_20251231_142358",
+          "created_at": "2025-12-31T14:23:56.157329",
+          "status": "generated",
+          "prompt_data_snapshot": {
+            "description": "blip"
+          }
+        }
+      ],
+      "assigned_track": "sfx_1",
+      "assigned_channels": [
+        3
+      ],
+      "categories": {
+        "categories": []
+      }
+    },
+    {
+      "time_ms": 6109,
+      "type": "music",
+      "name": "city pop",
+      "prompt_data": {
+        "positiveGlobalStyles": [
+          "city pop"
+        ],
+        "negativeGlobalStyles": [],
+        "sections": [
+          {
+            "sectionName": "Section 1",
+            "durationMs": 30000,
+            "positiveLocalStyles": [
+              "intro"
+            ],
+            "negativeLocalStyles": [],
+            "lines": []
+          }
+        ]
+      },
+      "asset_slot": "sfx_1",
+      "asset_file": "MUS_00001_v1.mp3",
+      "asset_id": null,
+      "status": "not yet generated",
+      "current_version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "asset_file": "city pop_v1.mp3",
+          "asset_id": "music_20251231_142430",
+          "created_at": "2025-12-31T14:24:24.337743",
+          "status": "generated",
+          "prompt_data_snapshot": {
+            "positiveGlobalStyles": [
+              "city pop"
+            ],
+            "negativeGlobalStyles": [],
+            "sections": [
+              {
+                "sectionName": "Section 1",
+                "durationMs": 30000,
+                "positiveLocalStyles": [
+                  "intro"
+                ],
+                "negativeLocalStyles": [],
+                "lines": []
+              }
+            ]
+          }
+        }
+      ],
+      "assigned_track": "music_lr",
+      "assigned_channels": [
+        1,
+        2
+      ],
+      "categories": {
+        "genre": "",
+        "subGenre": "",
+        "key": "Unknown",
+        "bpm": 0,
+        "instruments": [],
+        "mood": [],
+        "intensity": "Moderate"
+      }
+    }
+  ]
+}

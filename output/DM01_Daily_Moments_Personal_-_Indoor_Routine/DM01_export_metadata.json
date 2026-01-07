@@ -1,0 +1,37 @@
+{
+  "template_id": "DM01",
+  "template_name": "Daily Moments Personal - Indoor Routine",
+  "total_duration_ms": 14833,
+  "video_reference": "cafe-shop-acoustic-soul-pop-110bpm.mp4",
+  "marker_count": {
+    "music": 1,
+    "sfx": 0,
+    "voice": 0,
+    "total": 1
+  },
+  "markers_included": [
+    "rainy-day-lofi-beats-to-sip-coffee-too_v1.mp3"
+  ],
+  "assembled_file": "DM01_assembled.wav",
+  "export_format": {
+    "channels": 5,
+    "channel_map": {
+      "1": "music_left",
+      "2": "music_right",
+      "3": "sfx_1",
+      "4": "sfx_2",
+      "5": "voice"
+    },
+    "channel_types": {
+      "1-2": "stereo",
+      "3": "mono",
+      "4": "mono",
+      "5": "mono"
+    },
+    "sample_rate": 48000,
+    "bit_depth": 24
+  },
+  "exported_at": "2026-01-05T16:44:08.952908",
+  "exported_by": "Audio Mapper v1.0",
+  "version": "1.0"
+}

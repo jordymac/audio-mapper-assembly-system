@@ -64,6 +64,7 @@ class VideoPlayerController:
         self.video_capture = None
         self.current_frame = None
         self.photo_image = None
+        self.video_path = None  # Track loaded video file path
 
         # Playback state
         self.current_time_ms = 0
@@ -101,6 +102,7 @@ class VideoPlayerController:
         self.fps = self.video_capture.get(cv2.CAP_PROP_FPS)
         self.total_frames = int(self.video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
         self.duration_ms = int((self.total_frames / self.fps) * 1000)
+        self.video_path = filepath  # Store video path
 
         # Update UI
         self.timeline_slider.config(to=self.duration_ms)
@@ -356,6 +358,14 @@ class VideoPlayerController:
     def is_currently_playing(self):
         """Check if currently playing"""
         return self.is_playing
+
+    def get_video_path(self):
+        """Get the loaded video file path"""
+        return self.video_path
+
+    def get_duration_ms(self):
+        """Get duration in milliseconds (alias for get_duration)"""
+        return self.duration_ms
 
     def cleanup(self):
         """Release video resources"""

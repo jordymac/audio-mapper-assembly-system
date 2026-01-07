@@ -1,0 +1,112 @@
+{
+  "template_id": "DM01",
+  "template_name": "Daily Moments Personal - Indoor Routine",
+  "duration_ms": 14833,
+  "markers": [
+    {
+      "time_ms": 0,
+      "type": "music",
+      "name": "rainy-day-lofi-beats-to-sip-coffee-too",
+      "prompt_data": {
+        "positiveGlobalStyles": [
+          "Warm lo-fi hip hop track",
+          "60 seconds. Cozy indoor cafe atmosphere on a rainy day. Dusty upright piano with gentle Rhodes-like warmth",
+          "saturated analog bass with soft tube distortion",
+          "lazy swinging drum groove with crunchy bit-crushed texture and vinyl crackle layered throughout. Tempo around 85-95 BPM",
+          "relaxed swing feel. Major key tonality",
+          "comforting and inviting mood. Subtle background rain ambience optional. Smooth intro with piano and crackle",
+          "drums enter around 8 seconds",
+          "bass joins at 15 seconds. Maintain consistent warm energy throughout",
+          "gentle fade at end. Think studying alone in a quiet corner booth",
+          "steam rising from coffee",
+          "windows fogged with rain."
+        ],
+        "negativeGlobalStyles": [],
+        "sections": [
+          {
+            "sectionName": "Section 1",
+            "durationMs": 8000,
+            "positiveLocalStyles": [
+              "intro"
+            ],
+            "negativeLocalStyles": [],
+            "lines": []
+          },
+          {
+            "sectionName": "Section 2",
+            "durationMs": 37000,
+            "positiveLocalStyles": [
+              "full arrangement"
+            ],
+            "negativeLocalStyles": [],
+            "lines": []
+          }
+        ]
+      },
+      "asset_slot": "sfx_0",
+      "asset_file": "MUS_00000_v1.mp3",
+      "asset_id": null,
+      "status": "not yet generated",
+      "current_version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "asset_file": "rainy-day-lofi-beats-to-sip-coffee-too_v1.mp3",
+          "asset_id": "music_20260105_162639",
+          "created_at": "2026-01-05T16:26:24.852664",
+          "status": "generated",
+          "prompt_data_snapshot": {
+            "positiveGlobalStyles": [
+              "Warm lo-fi hip hop track",
+              "60 seconds. Cozy indoor cafe atmosphere on a rainy day. Dusty upright piano with gentle Rhodes-like warmth",
+              "saturated analog bass with soft tube distortion",
+              "lazy swinging drum groove with crunchy bit-crushed texture and vinyl crackle layered throughout. Tempo around 85-95 BPM",
+              "relaxed swing feel. Major key tonality",
+              "comforting and inviting mood. Subtle background rain ambience optional. Smooth intro with piano and crackle",
+              "drums enter around 8 seconds",
+              "bass joins at 15 seconds. Maintain consistent warm energy throughout",
+              "gentle fade at end. Think studying alone in a quiet corner booth",
+              "steam rising from coffee",
+              "windows fogged with rain."
+            ],
+            "negativeGlobalStyles": [],
+            "sections": [
+              {
+                "sectionName": "Section 1",
+                "durationMs": 8000,
+                "positiveLocalStyles": [
+                  "intro"
+                ],
+                "negativeLocalStyles": [],
+                "lines": []
+              },
+              {
+                "sectionName": "Section 2",
+                "durationMs": 37000,
+                "positiveLocalStyles": [
+                  "full arrangement"
+                ],
+                "negativeLocalStyles": [],
+                "lines": []
+              }
+            ]
+          }
+        }
+      ],
+      "assigned_track": "music_lr",
+      "assigned_channels": [
+        1,
+        2
+      ],
+      "categories": {
+        "genre": "",
+        "subGenre": "",
+        "key": "Unknown",
+        "bpm": 0,
+        "instruments": [],
+        "mood": [],
+        "intensity": "Moderate"
+      }
+    }
+  ]
+}
