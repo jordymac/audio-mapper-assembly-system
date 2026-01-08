@@ -109,13 +109,14 @@ class MarkerVersionManager:
         return marker["versions"][-1] if marker["versions"] else None
 
     @staticmethod
-    def add_new_version(marker: Dict[str, Any], prompt_data: Dict[str, Any]) -> int:
+    def add_new_version(marker: Dict[str, Any], prompt_data: Dict[str, Any], notes: str = "") -> int:
         """
         Create a new version for a marker
 
         Args:
             marker: The marker dict to add version to
             prompt_data: The prompt_data to use for this version
+            notes: Optional notes explaining why this version was created
 
         Returns:
             The new version number
@@ -149,7 +150,8 @@ class MarkerVersionManager:
             "asset_id": None,  # Will be set when generated via API
             "created_at": datetime.now().isoformat(),
             "status": "not yet generated",
-            "prompt_data_snapshot": prompt_data.copy()  # Deep copy of prompt_data
+            "prompt_data_snapshot": prompt_data.copy(),  # Deep copy of prompt_data
+            "notes": notes  # Why this version was created
         }
 
         # Add to versions list
@@ -252,7 +254,8 @@ class MarkerVersionManager:
             "asset_id": marker.get("asset_id", None),
             "created_at": datetime.now().isoformat(),
             "status": marker.get("status", "not yet generated"),
-            "prompt_data_snapshot": prompt_data.copy()
+            "prompt_data_snapshot": prompt_data.copy(),
+            "notes": "Initial version (migrated from old format)"
         }
 
         # Add version structure to marker

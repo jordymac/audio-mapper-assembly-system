@@ -207,6 +207,7 @@ class PromptEditorWindow:
         status = version_data.get('status', 'unknown')
         asset_id = version_data.get('asset_id', 'N/A')
         asset_file = version_data.get('asset_file', 'N/A')
+        notes = version_data.get('notes', '')
 
         # Format created_at if it's a datetime string
         if 'T' in created_at:
@@ -220,6 +221,10 @@ class PromptEditorWindow:
             f"Status: {status}  |  "
             f"Asset: {asset_file}"
         )
+
+        # Add notes on a new line if they exist
+        if notes:
+            metadata_text += f"\nNotes: {notes}"
 
         self.metadata_label.config(text=metadata_text)
 

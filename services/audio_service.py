@@ -191,12 +191,13 @@ class AudioGenerationService:
     # SINGLE MARKER GENERATION
     # ========================================================================
 
-    def generate_marker_audio(self, marker_index):
+    def generate_marker_audio(self, marker_index, notes=""):
         """
         Generate audio for a marker using ElevenLabs API
 
         Args:
             marker_index: Index of marker to generate
+            notes: Optional notes explaining why this version is being created
         """
         if not (0 <= marker_index < len(self.gui.markers)):
             return
@@ -231,12 +232,12 @@ class AudioGenerationService:
         # Start generation in background thread
         thread = threading.Thread(
             target=self._generate_audio_background,
-            args=(marker_index, marker_type, prompt_data, old_marker_state),
+            args=(marker_index, marker_type, prompt_data, old_marker_state, notes),
             daemon=True
         )
         thread.start()
 
-    def _generate_audio_background(self, marker_index, marker_type, prompt_data, old_marker_state):
+    def _generate_audio_background(self, marker_index, marker_type, prompt_data, old_marker_state, notes=""):
         """
         Background thread for audio generation (doesn't block UI)
 
@@ -245,6 +246,7 @@ class AudioGenerationService:
             marker_type: Type of marker (sfx/voice/music)
             prompt_data: Prompt data for generation
             old_marker_state: Marker state before generation (for undo)
+            notes: Notes explaining why this version is being created
         """
         try:
             # Update progress: 10% - Starting
@@ -254,7 +256,11 @@ class AudioGenerationService:
 
             # Create version when generation starts (not when marker is created)
             # This ensures version 1 is created on first generation, not before
-            next_version = self.gui.add_new_version(marker, prompt_data)
+            # Use provided notes, or generate default if not provided
+            if not notes:
+                is_first_version = marker.get('current_version', 0) == 0
+                notes = "Initial audio generation" if is_first_version else "Audio regeneration"
+            next_version = self.gui.add_new_version(marker, prompt_data, notes)
 
             # Build output path
             marker_name = marker.get('name', f'{marker_type.upper()}_{marker_index:05d}')

@@ -793,18 +793,19 @@ class AudioMapperGUI:
         """
         return MarkerVersionManager.get_current_version_data(marker)
 
-    def add_new_version(self, marker, prompt_data):
+    def add_new_version(self, marker, prompt_data, notes=""):
         """
         Create a new version for a marker
 
         Args:
             marker: The marker dict to add version to
             prompt_data: The prompt_data to use for this version
+            notes: Optional notes explaining why this version was created
 
         Returns:
             The new version number
         """
-        return MarkerVersionManager.add_new_version(marker, prompt_data)
+        return MarkerVersionManager.add_new_version(marker, prompt_data, notes)
 
     def rollback_to_version(self, marker, version_num):
         """
@@ -1668,8 +1669,37 @@ class AudioMapperGUI:
             self.root.after(100, lambda: self.check_playback_finished(marker_index))
 
     def generate_marker_audio(self, marker_index):
-        """Delegate to audio service"""
-        self.audio_service.generate_marker_audio(marker_index)
+        """
+        Generate audio for a marker, prompting for notes first
+
+        Args:
+            marker_index: Index of marker to generate
+        """
+        if not (0 <= marker_index < len(self.markers)):
+            return
+
+        marker = self.markers[marker_index]
+
+        # Determine next version number
+        if "versions" not in marker or not marker["versions"]:
+            next_version = 1
+        else:
+            next_version = max(v["version"] for v in marker["versions"]) + 1
+
+        # Check if this is first generation
+        is_first_generation = marker.get('current_version', 0) == 0
+
+        # Show notes dialog
+        from ui.components.notes_dialog import NotesDialog
+        dialog = NotesDialog(self.root, marker, next_version, is_first_generation)
+        notes = dialog.show()
+
+        # If user cancelled, don't generate
+        if notes is None:
+            return
+
+        # Pass notes to audio service
+        self.audio_service.generate_marker_audio(marker_index, notes=notes)
 
     # ========================================================================
     # BATCH GENERATION OPERATIONS
