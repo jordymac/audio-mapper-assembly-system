@@ -28,10 +28,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. User creates new marker and editor opens for that new marker, not previous marker
   3. Waveform state clears properly between regenerations
   4. Selection state syncs between marker creation and editor opening
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 01-01: TBD during planning
+- [ ] 01-01-PLAN.md — Fix waveform state clearing and marker selection sync
 
 ### Phase 2: Playback & Audio Issues
 **Goal**: Playback triggers all markers and reports missing audio
@@ -82,7 +82,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. UI State & Visual Bugs | 0/TBD | Not started | - |
+| 1. UI State & Visual Bugs | 0/1 | Planned | - |
 | 2. Playback & Audio Issues | 0/TBD | Not started | - |
 | 3. Data Handling Failures | 0/TBD | Not started | - |
 | 4. Security Hygiene | 0/TBD | Not started | - |
