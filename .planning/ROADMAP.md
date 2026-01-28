@@ -12,7 +12,7 @@ This milestone addresses critical bugs that create user friction and silent fail
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: UI State & Visual Bugs** - Fix waveform display and marker selection state issues
+- [x] **Phase 1: UI State & Visual Bugs** - Fix waveform display and marker selection state issues
 - [ ] **Phase 2: Playback & Audio Issues** - Fix marker triggering and missing audio handling
 - [ ] **Phase 3: Data Handling Failures** - Surface silent duration and type confusion errors
 - [ ] **Phase 4: Security Hygiene** - Validate environment setup, paths, and API inputs
@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 1 plan
 
 Plans:
-- [ ] 01-01-PLAN.md — Fix waveform state clearing and marker selection sync
+- [x] 01-01-PLAN.md — Fix waveform state clearing and marker selection sync
 
 ### Phase 2: Playback & Audio Issues
 **Goal**: Playback triggers all markers and reports missing audio
@@ -82,10 +82,10 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. UI State & Visual Bugs | 0/1 | Planned | - |
+| 1. UI State & Visual Bugs | 1/1 | Complete | 2026-01-28 |
 | 2. Playback & Audio Issues | 0/TBD | Not started | - |
 | 3. Data Handling Failures | 0/TBD | Not started | - |
 | 4. Security Hygiene | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-01-22*
+*Last updated: 2026-01-28*
