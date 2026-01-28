@@ -1172,6 +1172,9 @@ class AudioMapperGUI:
         if marker_index is None:
             return
 
+        # Sync selection state to the new marker before opening editor
+        self.marker_selection_manager.select_marker_row(marker_index)
+
         # Define cancel callback that undoes the add if user cancels
         def on_cancel():
             self.history.undo()
