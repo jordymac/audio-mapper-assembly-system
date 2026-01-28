@@ -413,4 +413,9 @@ class MarkerRow:
 
     def refresh_waveform(self):
         """Refresh waveform display (call after audio generation completes)"""
+        # Clear cached state to prevent stale data artifacts
+        self.waveform_data = None
+        self.audio_duration_ms = 0
+        self.waveform_canvas.delete("all")  # Clear canvas immediately
+        # Reload fresh waveform data
         self.load_waveform()
