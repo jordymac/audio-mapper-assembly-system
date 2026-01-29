@@ -336,13 +336,23 @@ class MarkerRow:
             self.draw_waveform_placeholder("No audio file")
             return
 
-        # Construct full path (check multiple possible locations)
+        # Construct full path (check multiple possible locations and extensions)
         audio_path = None
-        possible_paths = [
-            os.path.join("generated_audio", asset_file),
-            os.path.join("generated_audio", self.marker["type"], asset_file),
-            asset_file  # Absolute path
-        ]
+
+        # Try both original extension and .wav fallback (for legacy files)
+        extensions_to_try = [asset_file]
+        if asset_file.endswith('.mp3'):
+            extensions_to_try.append(asset_file.replace('.mp3', '.wav'))
+        elif not asset_file.endswith('.wav'):
+            extensions_to_try.append(asset_file.rsplit('.', 1)[0] + '.wav')
+
+        possible_paths = []
+        for filename in extensions_to_try:
+            possible_paths.extend([
+                os.path.join("generated_audio", filename),
+                os.path.join("generated_audio", self.marker["type"], filename),
+                filename  # Absolute path
+            ])
 
         for path in possible_paths:
             if os.path.exists(path):
