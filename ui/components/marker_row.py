@@ -325,12 +325,14 @@ class MarkerRow:
         # Get current version data to find audio file
         current_version_data = self.gui.get_current_version_data(self.marker)
         if not current_version_data:
+            print(f"[MarkerRow {self.marker_index}] load_waveform: No version data")
             self.draw_waveform_placeholder("No audio yet")
             return
 
         # Get asset file path
         asset_file = current_version_data.get("asset_file")
         if not asset_file:
+            print(f"[MarkerRow {self.marker_index}] load_waveform: No asset_file in version data")
             self.draw_waveform_placeholder("No audio file")
             return
 
@@ -348,8 +350,11 @@ class MarkerRow:
                 break
 
         if not audio_path:
+            print(f"[MarkerRow {self.marker_index}] load_waveform: Audio not found - tried {possible_paths}")
             self.draw_waveform_placeholder("Audio not found")
             return
+
+        print(f"[MarkerRow {self.marker_index}] load_waveform: Loading from {audio_path}")
 
         # Extract waveform data using WaveformManager
         self.waveform_data, self.audio_duration_ms = WaveformManager.extract_waveform_from_audio(
@@ -358,8 +363,10 @@ class MarkerRow:
         )
 
         if self.waveform_data:
+            print(f"[MarkerRow {self.marker_index}] load_waveform: Successfully loaded {len(self.waveform_data)} samples")
             self.draw_waveform()
         else:
+            print(f"[MarkerRow {self.marker_index}] load_waveform: Extraction failed")
             self.draw_waveform_placeholder("Load failed")
 
     def draw_waveform(self):
@@ -399,6 +406,8 @@ class MarkerRow:
             width=1,
             tags="centerline"
         )
+
+        print(f"[MarkerRow {self.marker_index}] draw_waveform: Drew {len(self.waveform_data)} waveform bars")
 
     def draw_waveform_placeholder(self, text: str):
         """Draw placeholder text on waveform canvas"""

@@ -349,13 +349,18 @@ class AudioGenerationService:
         command.new_marker_state = self.gui.markers[marker_index].copy()
         self.gui.history.execute_command(command)
 
-        # Update UI
-        self.gui.update_marker_list()
+        # Hide progress bar BEFORE updating marker list (to avoid timing issue)
+        self.gui.hide_marker_progress(marker_index)
 
-        # Hide progress bar after a short delay
-        self.gui.root.after(500, lambda: self.gui.hide_marker_progress(marker_index))
+        # FIX: Instead of destroying all widgets, just refresh the specific marker's waveform
+        # This avoids widget recreation artifacts and uses the refresh_waveform() fix from plan 01-01
+        if 0 <= marker_index < len(self.gui.marker_row_widgets):
+            row = self.gui.marker_row_widgets[marker_index]
+            row.marker = self.gui.markers[marker_index]  # Update reference
+            row.refresh_waveform()  # Refresh waveform using new audio
+            row.update_display()  # Update status/version display
 
-        # **NEW: Automatically update waveform in multi-track display**
+        # **Automatically update waveform in multi-track display**
         self.gui.root.after(100, lambda: self.gui.update_marker_waveform_in_track(marker_index))
 
         # Show success message
