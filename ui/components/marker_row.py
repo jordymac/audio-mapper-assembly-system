@@ -380,21 +380,27 @@ class MarkerRow:
         canvas_width = 150
         canvas_height = 40
         mid_y = canvas_height // 2
+        num_samples = len(self.waveform_data)
 
-        # Draw waveform bars
+        # Draw waveform bars as rectangles to fill space without gaps
         for i, amplitude in enumerate(self.waveform_data):
-            # Calculate x position
-            x = int((i / len(self.waveform_data)) * canvas_width)
+            # Calculate x boundaries for this bar (fills the space)
+            x_start = int((i / num_samples) * canvas_width)
+            x_end = int(((i + 1) / num_samples) * canvas_width)
+
+            # Ensure at least 1 pixel width
+            if x_end <= x_start:
+                x_end = x_start + 1
 
             # Scale amplitude to fit canvas
             height = int(amplitude * (canvas_height / 2) * 0.9)
 
-            # Draw vertical line
-            self.waveform_canvas.create_line(
-                x, mid_y - height,
-                x, mid_y + height,
+            # Draw filled rectangle for this bar
+            self.waveform_canvas.create_rectangle(
+                x_start, mid_y - height,
+                x_end, mid_y + height,
                 fill=COLORS.waveform_color,
-                width=1,
+                outline="",  # No border
                 tags="waveform"
             )
 
