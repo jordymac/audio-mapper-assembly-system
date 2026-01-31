@@ -293,10 +293,30 @@ class MarkerRow:
 
     def update_display(self):
         """Refresh row display (useful when marker data changes)"""
+        # Preserve selection state before destroying widgets
+        was_selected = self.is_selected
+
         # Destroy and recreate widgets
         for widget in self.frame.winfo_children():
             widget.destroy()
         self.create_widgets()
+
+        # Restore selection state
+        if was_selected:
+            self.set_selected(True)
+
+    def update_status_display(self):
+        """
+        Update only the status/version display without recreating the waveform.
+        This is more efficient than update_display() when only status needs to change.
+
+        Note: Since tkinter labels don't support text updates without reference storage,
+        this method currently recreates all widgets. For true efficiency, refactor to
+        store label references as instance variables.
+        """
+        # For now, delegate to update_display
+        # A future optimization would store label references and update them directly
+        self.update_display()
 
     def show_progress(self):
         """Show progress bar and set to 0%"""
@@ -423,6 +443,9 @@ class MarkerRow:
             tags="centerline"
         )
 
+        # Force canvas to process drawing immediately to prevent visual artifacts
+        self.waveform_canvas.update_idletasks()
+
         print(f"[MarkerRow {self.marker_index}] draw_waveform: Drew {len(self.waveform_data)} waveform bars")
 
     def draw_waveform_placeholder(self, text: str):
@@ -435,6 +458,8 @@ class MarkerRow:
             font=("Arial", 8),
             tags="placeholder"
         )
+        # Force canvas to process drawing immediately
+        self.waveform_canvas.update_idletasks()
 
     def refresh_waveform(self):
         """Refresh waveform display (call after audio generation completes)"""

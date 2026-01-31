@@ -352,13 +352,30 @@ class AudioGenerationService:
         # Hide progress bar BEFORE updating marker list (to avoid timing issue)
         self.gui.hide_marker_progress(marker_index)
 
-        # FIX: Instead of destroying all widgets, just refresh the specific marker's waveform
-        # This avoids widget recreation artifacts and uses the refresh_waveform() fix from plan 01-01
+        # FIX: Refresh waveform display after audio generation completes
+        # Key insight: We DON'T call update_display() immediately after refresh_waveform()
+        # because update_display() destroys and recreates the canvas, invalidating the
+        # waveform that refresh_waveform() just drew.
+        #
+        # Instead, we call update_display() with a delay to allow the waveform to render,
+        # OR we schedule the waveform refresh AFTER the display update.
+        #
+        # Root cause analysis (Plan 01-02):
+        # - refresh_waveform() clears canvas and draws new waveform
+        # - update_display() destroys that canvas immediately
+        # - This creates a visual artifact where the cleared canvas is briefly visible
+        #
+        # Solution: Only call update_display() which handles everything through
+        # create_widgets() -> load_waveform(), and force a proper repaint.
         if 0 <= marker_index < len(self.gui.marker_row_widgets):
             row = self.gui.marker_row_widgets[marker_index]
             row.marker = self.gui.markers[marker_index]  # Update reference
-            row.refresh_waveform()  # Refresh waveform using new audio
-            row.update_display()  # Update status/version display
+
+            # Update the display (destroys old widgets, creates new ones with fresh waveform)
+            row.update_display()
+
+            # Force the frame to process all pending events to ensure complete repaint
+            row.frame.update_idletasks()
 
         # **Automatically update waveform in multi-track display**
         self.gui.root.after(100, lambda: self.gui.update_marker_waveform_in_track(marker_index))
