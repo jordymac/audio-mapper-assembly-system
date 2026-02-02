@@ -10,29 +10,29 @@ See: .planning/PROJECT.md (updated 2026-01-22)
 ## Current Position
 
 Phase: 4 of 4 (Security Hygiene)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-02 - Completed 04-01-PLAN.md (Environment Validation)
+Last activity: 2026-02-02 - Completed 04-02-PLAN.md (Input Validation)
 
-Progress: [███████░░░] 75%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 6 min
-- Total execution time: 0.28 hours
+- Total plans completed: 4
+- Average duration: 5 min
+- Total execution time: 0.33 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 (UI State) | 2 | 16 min | 8 min |
-| 4 (Security) | 1 | 1 min | 1 min |
+| 4 (Security) | 2 | 5 min | 2.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (1 min), 01-02 (15 min), 04-01 (1 min)
-- Trend: Security hygiene phase started
+- Last 5 plans: 01-01 (1 min), 01-02 (15 min), 04-01 (1 min), 04-02 (4 min)
+- Trend: Security hygiene phase progressing efficiently
 
 *Updated after each plan completion*
 
@@ -53,6 +53,9 @@ Recent decisions affecting current work:
 | 2026-02-02 | Remove import-time ValueError for deferred validation | Allows GUI to show clear error dialog before crash |
 | 2026-02-02 | Use structured validation result tuple | Enables specific error messages for different failure modes |
 | 2026-02-02 | Implement lazy client initialization | Prevents client creation before validation completes |
+| 2026-02-02 | Permissive import validation vs strict export validation | Balances user flexibility with security - imports from anywhere, exports to project only |
+| 2026-02-02 | Validate prompts before API calls | Fail fast with clear errors instead of cryptic API errors |
+| 2026-02-02 | Separate validator modules in utils/ | Reusability and separation of concerns for validation logic |
 
 ### Pending Todos
 
@@ -68,13 +71,13 @@ Known bug locations from codebase mapping:
 - BUG-05 (Type confusion): services/assembly_service.py, services/audio_service.py, services/assembly_playback_service.py
 - BUG-06 (Missing audio): services/assembly_playback_service.py:81-87 (silent skip)
 - ~~SEC-01 (Environment): FIXED in 04-01~~
-- SEC-02 (Path traversal): controllers/file_handler.py, managers/waveform_manager.py (no validation)
-- SEC-03 (Prompt validation): services/elevenlabs_api.py (no length/sanitization checks)
+- ~~SEC-02 (Path traversal): FIXED in 04-02 (file_handler.py)~~ - Note: managers/waveform_manager.py uses tkinter dialogs (already sanitized)
+- ~~SEC-03 (Prompt validation): FIXED in 04-02~~
 
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Completed 04-01-PLAN.md (Environment Validation)
+Stopped at: Completed 04-02-PLAN.md (Input Validation)
 Resume file: None
 
 ---
