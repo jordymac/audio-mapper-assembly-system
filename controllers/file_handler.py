@@ -7,6 +7,7 @@ Handles reading and writing marker data to/from JSON files
 import json
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
+from utils.path_validator import validate_import_path, validate_export_path, PathValidationError
 
 
 class FileHandler:
@@ -35,8 +36,14 @@ class FileHandler:
             - error_message: Error description if failed, None otherwise
         """
         try:
+            # Validate path before reading
+            try:
+                validated_path = validate_import_path(filepath)
+            except PathValidationError as e:
+                return False, None, str(e)
+
             # Load JSON file
-            with open(filepath, 'r') as f:
+            with open(validated_path, 'r') as f:
                 data = json.load(f)
 
             # Validate required fields
@@ -91,6 +98,12 @@ class FileHandler:
             - error_message: Error description if failed, None otherwise
         """
         try:
+            # Validate export path
+            try:
+                validated_path = validate_export_path(filepath)
+            except PathValidationError as e:
+                return False, str(e)
+
             # Build JSON structure
             template = {
                 "template_id": template_id or "TEMPLATE",
@@ -100,13 +113,13 @@ class FileHandler:
             }
 
             # Ensure parent directory exists
-            Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+            Path(validated_path).parent.mkdir(parents=True, exist_ok=True)
 
             # Write to file
-            with open(filepath, 'w') as f:
+            with open(validated_path, 'w') as f:
                 json.dump(template, f, indent=2)
 
-            print(f"✓ Exported {len(markers)} markers to {filepath}")
+            print(f"✓ Exported {len(markers)} markers to {validated_path}")
             return True, None
 
         except Exception as e:
