@@ -13,12 +13,63 @@ from datetime import datetime
 # Load environment variables from .env.local
 load_dotenv('.env.local')
 
-# Initialize ElevenLabs client
+# Initialize API key (don't raise here - defer to validation function)
 API_KEY = os.getenv('ELEVENLABS_API_KEY')
-if not API_KEY:
-    raise ValueError("ELEVENLABS_API_KEY not found in .env.local")
 
-client = ElevenLabs(api_key=API_KEY)
+# Lazy client initialization
+client = None
+
+
+def validate_api_key():
+    """
+    Validate that ElevenLabs API key is properly configured.
+
+    Returns:
+        tuple: (is_valid, error_type, error_message)
+            is_valid: True if API key is configured, False otherwise
+            error_type: "missing_file", "missing_key", or None
+            error_message: Detailed error message with setup instructions, or None
+    """
+    # Check if .env.local file exists
+    if not Path('.env.local').exists():
+        return (False, "missing_file", """Configuration file not found: .env.local
+
+To set up the application:
+1. Create a file named '.env.local' in the project root
+2. Add your ElevenLabs API key:
+   ELEVENLABS_API_KEY=your_api_key_here
+
+Get your API key at: https://elevenlabs.io/api""")
+
+    # Check if API key is set
+    if not API_KEY or not API_KEY.strip():
+        return (False, "missing_key", """API key not configured in .env.local
+
+Add this line to your .env.local file:
+ELEVENLABS_API_KEY=your_api_key_here
+
+Get your API key at: https://elevenlabs.io/api""")
+
+    # All good
+    return (True, None, None)
+
+
+def get_client():
+    """
+    Get or initialize the ElevenLabs client.
+
+    Returns:
+        ElevenLabs: The initialized client
+
+    Raises:
+        ValueError: If API key is not configured
+    """
+    global client
+    if client is None:
+        if not API_KEY:
+            raise ValueError("ElevenLabs API key not configured. Call validate_api_key() first.")
+        client = ElevenLabs(api_key=API_KEY)
+    return client
 
 
 def generate_sfx(description: str, output_path: str = None) -> dict:
@@ -53,7 +104,7 @@ def generate_sfx(description: str, output_path: str = None) -> dict:
 
         # Generate sound effect
         # Note: ElevenLabs sound effects API
-        audio_generator = client.text_to_sound_effects.convert(
+        audio_generator = get_client().text_to_sound_effects.convert(
             text=description,
             duration_seconds=None,  # Auto-determine duration
             prompt_influence=0.3    # Balance between prompt and quality
@@ -136,7 +187,7 @@ def generate_voice(voice_profile: str, text: str, output_path: str = None) -> di
             print(f"🔄 Generating voice previews...")
 
             # Generate voice previews based on description
-            voices = client.text_to_voice.design(
+            voices = get_client().text_to_voice.design(
                 model_id="eleven_multilingual_ttv_v2",
                 voice_description=voice_profile,
                 text=text
@@ -180,7 +231,7 @@ def generate_voice(voice_profile: str, text: str, output_path: str = None) -> di
         print(f"🔄 Sending request to ElevenLabs TTS API...")
 
         # Generate speech with the selected voice
-        audio_generator = client.text_to_speech.convert(
+        audio_generator = get_client().text_to_speech.convert(
             voice_id=voice_id,
             optimize_streaming_latency=0,
             output_format="mp3_44100_128",
@@ -307,7 +358,7 @@ def generate_music(positive_styles: list, negative_styles: list, sections: list,
         print(f"🔄 Sending request to ElevenLabs Music API...")
 
         # Generate music using the dedicated Music API
-        audio_generator = client.music.compose(
+        audio_generator = get_client().music.compose(
             composition_plan=composition_plan
         )
 
@@ -375,7 +426,7 @@ def test_api_connection():
     """
     try:
         # Try to list voices (lightweight API call)
-        voices = client.voices.get_all()
+        voices = get_client().voices.get_all()
         print(f"✓ ElevenLabs API connected ({len(voices.voices)} voices available)")
         return True
     except Exception as e:
