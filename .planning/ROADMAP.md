@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: UI State & Visual Bugs** - Fix waveform display and marker selection state issues
 - [x] **Phase 2: Playback & Audio Issues** - Fix marker triggering and missing audio handling
 - [x] **Phase 3: Data Handling Failures** - Surface silent duration and type confusion errors
-- [ ] **Phase 4: Security Hygiene** - Validate environment setup, paths, and API inputs
+- [x] **Phase 4: Security Hygiene** - Validate environment setup, paths, and API inputs
 
 ## Phase Details
 
@@ -74,8 +74,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Environment validation with clear error messages (SEC-01)
-- [ ] 04-02-PLAN.md — Path traversal protection and prompt length validation (SEC-02, SEC-03)
+- [x] 04-01-PLAN.md — Environment validation with clear error messages (SEC-01)
+- [x] 04-02-PLAN.md — Path traversal protection and prompt length validation (SEC-02, SEC-03)
 
 ## Progress
 
@@ -87,7 +87,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. UI State & Visual Bugs | 2/2 | ✓ Complete | 2026-01-31 |
 | 2. Playback & Audio Issues | 1/1 | ✓ Complete | 2026-02-02 |
 | 3. Data Handling Failures | 1/1 | ✓ Complete | 2026-02-02 |
-| 4. Security Hygiene | 0/TBD | Not started | - |
+| 4. Security Hygiene | 2/2 | ✓ Complete | 2026-02-02 |
 
 ---
 *Last updated: 2026-02-02*

@@ -9,21 +9,21 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### User-Facing Bugs
 
-- [ ] **BUG-01**: Waveform displays correctly on SFX regeneration (no blue rectangle artifact)
-- [ ] **BUG-02**: New marker creation opens editor for the new marker, not previous marker
-- [ ] **BUG-03**: Playback triggers all markers regardless of playhead start position
+- [x] **BUG-01**: Waveform displays correctly on SFX regeneration (no blue rectangle artifact)
+- [x] **BUG-02**: New marker creation opens editor for the new marker, not previous marker
+- [x] **BUG-03**: Playback triggers all markers regardless of playhead start position
 
 ### Silent Failures
 
-- [ ] **BUG-04**: Duration calculation failure shows error instead of silently returning 0
-- [ ] **BUG-05**: Marker dict/object handling is consistent throughout codebase (no type confusion)
-- [ ] **BUG-06**: Missing audio files are reported to user, not silently skipped during playback
+- [x] **BUG-04**: Duration calculation failure shows error instead of silently returning 0
+- [x] **BUG-05**: Marker dict/object handling is consistent throughout codebase (no type confusion)
+- [x] **BUG-06**: Missing audio files are reported to user, not silently skipped during playback
 
 ### Security Hygiene
 
-- [ ] **SEC-01**: Missing .env.local gives clear error message with setup instructions
-- [ ] **SEC-02**: File paths validated against allowed directories (prevent traversal)
-- [ ] **SEC-03**: ElevenLabs prompts validated for length limits and basic sanitization
+- [x] **SEC-01**: Missing .env.local gives clear error message with setup instructions
+- [x] **SEC-02**: File paths validated against allowed directories (prevent traversal)
+- [x] **SEC-03**: ElevenLabs prompts validated for length limits and basic sanitization
 
 ## v2 Requirements
 
@@ -65,15 +65,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUG-01 | Phase 1 | Pending |
-| BUG-02 | Phase 1 | Pending |
-| BUG-03 | Phase 2 | Pending |
-| BUG-04 | Phase 3 | Pending |
-| BUG-05 | Phase 3 | Pending |
-| BUG-06 | Phase 2 | Pending |
-| SEC-01 | Phase 4 | Pending |
-| SEC-02 | Phase 4 | Pending |
-| SEC-03 | Phase 4 | Pending |
+| BUG-01 | Phase 1 | Complete |
+| BUG-02 | Phase 1 | Complete |
+| BUG-03 | Phase 2 | Complete |
+| BUG-04 | Phase 3 | Complete |
+| BUG-05 | Phase 3 | Complete |
+| BUG-06 | Phase 2 | Complete |
+| SEC-01 | Phase 4 | Complete |
+| SEC-02 | Phase 4 | Complete |
+| SEC-03 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 9 total
@@ -82,4 +82,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-22*
-*Last updated: 2026-01-22 after roadmap creation*
+*Last updated: 2026-02-02 - All v1 requirements complete*
