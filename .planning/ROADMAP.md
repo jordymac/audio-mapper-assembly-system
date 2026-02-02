@@ -71,10 +71,11 @@ Plans:
   2. User attempts file operation outside allowed directories and operation is blocked with error
   3. User enters excessively long prompt and sees validation error before API call
   4. File path traversal attempts are detected and rejected
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: TBD during planning
+- [ ] 04-01-PLAN.md — Environment validation with clear error messages (SEC-01)
+- [ ] 04-02-PLAN.md — Path traversal protection and prompt length validation (SEC-02, SEC-03)
 
 ## Progress
 
