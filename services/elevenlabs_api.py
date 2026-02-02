@@ -9,6 +9,12 @@ from dotenv import load_dotenv
 from elevenlabs import ElevenLabs, VoiceSettings
 from pathlib import Path
 from datetime import datetime
+from utils.prompt_validator import (
+    validate_sfx_prompt,
+    validate_voice_prompt,
+    validate_music_styles,
+    PromptValidationError
+)
 
 # Load environment variables from .env.local
 load_dotenv('.env.local')
@@ -89,14 +95,23 @@ def generate_sfx(description: str, output_path: str = None) -> dict:
         }
     """
     try:
+        # Validate prompt before API call
+        try:
+            validated_description = validate_sfx_prompt(description)
+        except PromptValidationError as e:
+            return {
+                "success": False,
+                "error": f"Invalid prompt: {str(e)}"
+            }
+
         print("\n" + "="*70)
         print("🔊 SFX GENERATION REQUEST")
         print("="*70)
-        print(f"\n📋 Description: \"{description}\"")
+        print(f"\n📋 Description: \"{validated_description}\"")
         print(f"\n📡 API Call:")
         print(f"  Method: client.text_to_sound_effects.convert()")
         print(f"  Params:")
-        print(f"    text: \"{description}\"")
+        print(f"    text: \"{validated_description}\"")
         print(f"    duration_seconds: None (auto-determine)")
         print(f"    prompt_influence: 0.3")
         print("="*70)
@@ -105,7 +120,7 @@ def generate_sfx(description: str, output_path: str = None) -> dict:
         # Generate sound effect
         # Note: ElevenLabs sound effects API
         audio_generator = get_client().text_to_sound_effects.convert(
-            text=description,
+            text=validated_description,
             duration_seconds=None,  # Auto-determine duration
             prompt_influence=0.3    # Balance between prompt and quality
         )
@@ -166,31 +181,40 @@ def generate_voice(voice_profile: str, text: str, output_path: str = None) -> di
         }
     """
     try:
+        # Validate prompts before API call
+        try:
+            validated_text, validated_profile = validate_voice_prompt(text, voice_profile)
+        except PromptValidationError as e:
+            return {
+                "success": False,
+                "error": f"Invalid prompt: {str(e)}"
+            }
+
         print("\n" + "="*70)
         print("🎙️  VOICE GENERATION REQUEST")
         print("="*70)
 
         print(f"\n📋 Input Parameters:")
-        print(f"  Voice Profile: \"{voice_profile}\"")
-        print(f"  Text: \"{text}\"")
+        print(f"  Voice Profile: \"{validated_profile}\"")
+        print(f"  Text: \"{validated_text}\"")
 
         voice_id = None
         voice_description = None
 
         # If custom voice profile is provided, use Voice Design API
-        if voice_profile and voice_profile.strip():
+        if validated_profile and validated_profile.strip():
             print(f"\n🎨 Using Voice Design API for custom voice...")
             print(f"\n📡 Step 1: Design voice from description")
             print(f"  Method: client.text_to_voice.design()")
-            print(f"  Description: \"{voice_profile}\"")
+            print(f"  Description: \"{validated_profile}\"")
             print("="*70)
             print(f"🔄 Generating voice previews...")
 
             # Generate voice previews based on description
             voices = get_client().text_to_voice.design(
                 model_id="eleven_multilingual_ttv_v2",
-                voice_description=voice_profile,
-                text=text
+                voice_description=validated_profile,
+                text=validated_text
             )
 
             if not voices.previews or len(voices.previews) == 0:
@@ -199,7 +223,7 @@ def generate_voice(voice_profile: str, text: str, output_path: str = None) -> di
             # Use the first preview (best match)
             preview = voices.previews[0]
             voice_id = preview.generated_voice_id
-            voice_description = voice_profile
+            voice_description = validated_profile
 
             print(f"✓ Voice designed successfully!")
             print(f"  Generated Voice ID: {voice_id}")
@@ -221,7 +245,7 @@ def generate_voice(voice_profile: str, text: str, output_path: str = None) -> di
         print(f"    voice_id: {voice_id}")
         print(f"    model_id: eleven_multilingual_v2")
         print(f"    output_format: mp3_44100_128")
-        print(f"    text: \"{text}\"")
+        print(f"    text: \"{validated_text}\"")
         print(f"    voice_settings:")
         print(f"      stability: 0.5")
         print(f"      similarity_boost: 0.75")
@@ -235,7 +259,7 @@ def generate_voice(voice_profile: str, text: str, output_path: str = None) -> di
             voice_id=voice_id,
             optimize_streaming_latency=0,
             output_format="mp3_44100_128",
-            text=text,
+            text=validated_text,
             model_id="eleven_multilingual_v2",
             voice_settings=VoiceSettings(
                 stability=0.5,
@@ -306,13 +330,22 @@ def generate_music(positive_styles: list, negative_styles: list, sections: list,
         }
     """
     try:
+        # Validate styles before API call
+        try:
+            validated_positive, validated_negative = validate_music_styles(positive_styles, negative_styles)
+        except PromptValidationError as e:
+            return {
+                "success": False,
+                "error": f"Invalid prompt: {str(e)}"
+            }
+
         print("\n" + "="*70)
         print("🎵 MUSIC GENERATION REQUEST")
         print("="*70)
 
         print(f"\n📋 Input Parameters:")
-        print(f"  Positive Styles: {positive_styles}")
-        print(f"  Negative Styles: {negative_styles}")
+        print(f"  Positive Styles: {validated_positive}")
+        print(f"  Negative Styles: {validated_negative}")
         print(f"  Sections: {len(sections) if sections else 0}")
 
         # Calculate total duration from sections
@@ -320,8 +353,8 @@ def generate_music(positive_styles: list, negative_styles: list, sections: list,
 
         # Build composition plan in ElevenLabs format (snake_case required)
         composition_plan = {
-            "positive_global_styles": positive_styles if positive_styles else [],
-            "negative_global_styles": negative_styles if negative_styles else [],
+            "positive_global_styles": validated_positive if validated_positive else [],
+            "negative_global_styles": validated_negative if validated_negative else [],
             "sections": []
         }
 
