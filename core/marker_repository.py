@@ -5,8 +5,9 @@ Provides CRUD operations without GUI coupling
 """
 
 import copy
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Union
 from core.models import Marker
+from core.marker_utils import normalize_marker
 
 
 class MarkerRepository:
@@ -67,14 +68,16 @@ class MarkerRepository:
             return copy.deepcopy(self._markers[index])
         return None
 
-    def add_marker(self, marker: dict) -> None:
+    def add_marker(self, marker: Union[dict, object]) -> None:
         """
         Add a new marker and maintain time-based sorting.
 
         Args:
-            marker: Marker dictionary to add
+            marker: Marker dictionary or Marker object to add
         """
-        self._markers.append(copy.deepcopy(marker))
+        # Normalize to dict for consistent storage
+        marker_dict = normalize_marker(marker)
+        self._markers.append(copy.deepcopy(marker_dict))
         self._markers.sort(key=lambda m: m["time_ms"])
         self._notify_change()
 

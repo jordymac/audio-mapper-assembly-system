@@ -8,6 +8,7 @@ import os
 import time
 from pathlib import Path
 from typing import Optional, List, Set, Callable
+from core.marker_utils import get_marker_attr, get_current_version_data as get_version_data
 
 
 class AssemblyPlaybackService:
@@ -85,8 +86,8 @@ class AssemblyPlaybackService:
         missing_files = []
 
         for i, marker in enumerate(self.markers):
-            marker_type = marker.get('type', 'sfx') if isinstance(marker, dict) else marker.type
-            marker_name = marker.get('name', f'Marker {i}') if isinstance(marker, dict) else marker.name
+            marker_type = get_marker_attr(marker, 'type', 'sfx')
+            marker_name = get_marker_attr(marker, 'name', f'Marker {i}')
 
             # Get marker audio file path
             audio_path = self._get_marker_audio_path(marker)
@@ -122,15 +123,11 @@ class AssemblyPlaybackService:
 
     def _get_expected_audio_filename(self, marker) -> Optional[str]:
         """Get the expected audio filename for a marker (for error reporting)"""
-        if isinstance(marker, dict):
-            versions = marker.get('versions', [])
-            current_version = marker.get('current_version', 1)
-            current_version_data = next((v for v in versions if v.get('version') == current_version), None)
-            if current_version_data:
-                return current_version_data.get('asset_file', '')
-        else:
-            return marker.asset_file
-        return None
+        version_data = get_version_data(marker)
+        if version_data:
+            return version_data.get('asset_file', '')
+        # Fallback to direct asset_file attribute
+        return get_marker_attr(marker, 'asset_file')
 
     def _get_marker_audio_path(self, marker) -> Optional[str]:
         """
@@ -142,20 +139,14 @@ class AssemblyPlaybackService:
         Returns:
             Path to audio file or None
         """
-        # Handle both dict and object markers
-        if isinstance(marker, dict):
-            versions = marker.get('versions', [])
-            current_version = marker.get('current_version', 1)
-            current_version_data = next((v for v in versions if v.get('version') == current_version), None)
-
-            if not current_version_data:
-                return None
-
-            asset_file = current_version_data.get('asset_file', '')
-            marker_type = marker.get('type', 'unknown')
+        # Use marker_utils for consistent handling
+        version_data = get_version_data(marker)
+        if version_data:
+            asset_file = version_data.get('asset_file', '')
         else:
-            asset_file = marker.asset_file
-            marker_type = marker.type
+            asset_file = get_marker_attr(marker, 'asset_file', '')
+
+        marker_type = get_marker_attr(marker, 'type', 'unknown')
 
         if not asset_file:
             return None
@@ -200,9 +191,9 @@ class AssemblyPlaybackService:
             current_position_ms: Current playhead position in milliseconds
         """
         for i, marker in enumerate(self.markers):
-            marker_time_ms = marker.get('time_ms', 0) if isinstance(marker, dict) else marker.time_ms
-            marker_type = marker.get('type', 'sfx') if isinstance(marker, dict) else marker.type
-            duration_ms = marker.get('duration_ms', 0) if isinstance(marker, dict) else getattr(marker, 'duration_ms', 0)
+            marker_time_ms = get_marker_attr(marker, 'time_ms', 0)
+            marker_type = get_marker_attr(marker, 'type', 'sfx')
+            duration_ms = get_marker_attr(marker, 'duration_ms', 0)
 
             # Check if playhead is within this marker's duration
             # marker_time_ms <= current_position < marker_time_ms + duration_ms
@@ -222,7 +213,7 @@ class AssemblyPlaybackService:
                             self.triggered_markers.add(i)
 
                             if self.debug_logging:
-                                marker_name = marker.get('name', f'Marker {i}') if isinstance(marker, dict) else marker.name
+                                marker_name = get_marker_attr(marker, 'name', f'Marker {i}')
                                 print(f"🔊 [TRIGGER] Started music from offset {offset_seconds:.2f}s: {marker_name}")
                         except Exception as e:
                             if self.debug_logging:
@@ -259,7 +250,7 @@ class AssemblyPlaybackService:
 
         # Check each marker to see if playhead crossed it
         for i, marker in enumerate(self.markers):
-            marker_time_ms = marker.get('time_ms', 0) if isinstance(marker, dict) else marker.time_ms
+            marker_time_ms = get_marker_attr(marker, 'time_ms', 0)
 
             # Check if we crossed this marker
             if is_forward:
@@ -284,8 +275,8 @@ class AssemblyPlaybackService:
             marker: Marker object or dict
             offset_seconds: Start offset in seconds (only used for music markers)
         """
-        marker_type = marker.get('type', 'sfx') if isinstance(marker, dict) else marker.type
-        marker_name = marker.get('name', f'Marker {marker_index}') if isinstance(marker, dict) else marker.name
+        marker_type = get_marker_attr(marker, 'type', 'sfx')
+        marker_name = get_marker_attr(marker, 'name', f'Marker {marker_index}')
 
         if marker_type == 'music':
             # Music uses pygame.mixer.music (single stream, supports offset)

@@ -43,11 +43,13 @@ class FileHandler:
             if "markers" not in data:
                 return False, None, "Invalid JSON: 'markers' field missing"
 
-            # Validate duration
+            # Validate duration - warn user instead of silent correction
             duration_ms = data.get("duration_ms", 0)
             if duration_ms < 0:
-                # Set to 0 but allow import to continue
+                # Log warning and correct the value
+                print(f"⚠️ Invalid duration ({duration_ms}ms) in imported file, correcting to 0")
                 data["duration_ms"] = 0
+                data["_duration_was_invalid"] = True  # Flag for caller to show warning
 
             # Validate marker times
             markers = data["markers"]

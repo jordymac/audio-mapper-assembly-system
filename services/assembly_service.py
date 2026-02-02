@@ -10,6 +10,7 @@ from typing import List, Dict, Tuple, Optional
 from pydub import AudioSegment
 from scipy.io import wavfile
 from core.models import Marker, MarkerType
+from core.marker_utils import get_marker_attr, set_marker_attr, get_current_version_data
 
 
 class AssemblyService:
@@ -57,20 +58,13 @@ class AssemblyService:
         Returns:
             Dict mapping track_id to list of markers
         """
-        # Helper to get marker type (works with both dict and Marker objects)
-        def get_type(m):
-            return m.get('type') if isinstance(m, dict) else m.type
-
-        def get_time_ms(m):
-            return m.get('time_ms', 0) if isinstance(m, dict) else m.time_ms
-
-        # Collect markers by type
-        music_markers = [m for m in markers if get_type(m) == MarkerType.MUSIC.value]
-        sfx_markers = [m for m in markers if get_type(m) == MarkerType.SFX.value]
-        voice_markers = [m for m in markers if get_type(m) == MarkerType.VOICE.value]
+        # Collect markers by type using marker_utils
+        music_markers = [m for m in markers if get_marker_attr(m, 'type') == MarkerType.MUSIC.value]
+        sfx_markers = [m for m in markers if get_marker_attr(m, 'type') == MarkerType.SFX.value]
+        voice_markers = [m for m in markers if get_marker_attr(m, 'type') == MarkerType.VOICE.value]
 
         # Sort SFX by time for even distribution
-        sfx_markers_sorted = sorted(sfx_markers, key=get_time_ms)
+        sfx_markers_sorted = sorted(sfx_markers, key=lambda m: get_marker_attr(m, 'time_ms', 0))
 
         # Assign to tracks
         track_assignments = {
@@ -80,38 +74,22 @@ class AssemblyService:
             self.TRACK_VOICE: voice_markers
         }
 
-        # Update marker track assignments (works with both dict and Marker objects)
+        # Update marker track assignments using set_marker_attr
         for marker in music_markers:
-            if isinstance(marker, dict):
-                marker['assigned_track'] = self.TRACK_MUSIC_LR
-                marker['assigned_channels'] = [1, 2]
-            else:
-                marker.assigned_track = self.TRACK_MUSIC_LR
-                marker.assigned_channels = [1, 2]
+            set_marker_attr(marker, 'assigned_track', self.TRACK_MUSIC_LR)
+            set_marker_attr(marker, 'assigned_channels', [1, 2])
 
         for marker in track_assignments[self.TRACK_SFX_1]:
-            if isinstance(marker, dict):
-                marker['assigned_track'] = self.TRACK_SFX_1
-                marker['assigned_channels'] = [3]
-            else:
-                marker.assigned_track = self.TRACK_SFX_1
-                marker.assigned_channels = [3]
+            set_marker_attr(marker, 'assigned_track', self.TRACK_SFX_1)
+            set_marker_attr(marker, 'assigned_channels', [3])
 
         for marker in track_assignments[self.TRACK_SFX_2]:
-            if isinstance(marker, dict):
-                marker['assigned_track'] = self.TRACK_SFX_2
-                marker['assigned_channels'] = [4]
-            else:
-                marker.assigned_track = self.TRACK_SFX_2
-                marker.assigned_channels = [4]
+            set_marker_attr(marker, 'assigned_track', self.TRACK_SFX_2)
+            set_marker_attr(marker, 'assigned_channels', [4])
 
         for marker in voice_markers:
-            if isinstance(marker, dict):
-                marker['assigned_track'] = self.TRACK_VOICE
-                marker['assigned_channels'] = [5]
-            else:
-                marker.assigned_track = self.TRACK_VOICE
-                marker.assigned_channels = [5]
+            set_marker_attr(marker, 'assigned_track', self.TRACK_VOICE)
+            set_marker_attr(marker, 'assigned_channels', [5])
 
         self.track_assignments = track_assignments
         return track_assignments
@@ -146,26 +124,16 @@ class AssemblyService:
 
         # Overlay each marker's audio at its timestamp
         for marker in markers:
-            # Get current version data (handles both dict and Marker objects)
-            if isinstance(marker, dict):
-                # Dict marker - get current version's asset_file
-                versions = marker.get('versions', [])
-                current_version = marker.get('current_version', 1)
-                current_version_data = next((v for v in versions if v.get('version') == current_version), None)
-
-                if not current_version_data:
-                    continue
-
-                asset_file = current_version_data.get('asset_file', '')
-                marker_name = marker.get('name', '(unnamed)')
-                marker_type = marker.get('type', 'unknown')
-                time_ms = marker.get('time_ms', 0)
+            # Get current version data using marker_utils
+            version_data = get_current_version_data(marker)
+            if version_data:
+                asset_file = version_data.get('asset_file', '')
             else:
-                # Marker object
-                asset_file = marker.asset_file
-                marker_name = marker.name
-                marker_type = marker.type
-                time_ms = marker.time_ms
+                asset_file = get_marker_attr(marker, 'asset_file', '')
+
+            marker_name = get_marker_attr(marker, 'name', '(unnamed)')
+            marker_type = get_marker_attr(marker, 'type', 'unknown')
+            time_ms = get_marker_attr(marker, 'time_ms', 0)
 
             # Check if audio file exists - try multiple paths
             if not asset_file:
@@ -516,15 +484,10 @@ class AssemblyService:
         # Try to get description from first marker's name
         first_marker = markers[0]
 
-        # Handle both dict and Marker objects
-        if isinstance(first_marker, dict):
-            marker_name = first_marker.get('name', '')
-            marker_type = first_marker.get('type', 'unknown')
-            prompt_data = first_marker.get('prompt_data', {})
-        else:
-            marker_name = getattr(first_marker, 'name', '')
-            marker_type = getattr(first_marker, 'type', 'unknown')
-            prompt_data = getattr(first_marker, 'prompt_data', {})
+        # Use marker_utils for consistent access
+        marker_name = get_marker_attr(first_marker, 'name', '')
+        marker_type = get_marker_attr(first_marker, 'type', 'unknown')
+        prompt_data = get_marker_attr(first_marker, 'prompt_data', {})
 
         if marker_name:
             # Use marker name, sanitize for filename
@@ -808,12 +771,18 @@ class AssemblyService:
                 continue
             print(f"    Found at: {source_path}")
 
-            # Get audio duration
+            # Get audio duration with proper error handling
             try:
                 info = mediainfo(source_path)
-                audio_duration_ms = int(float(info.get('duration', 0)) * 1000)
-            except:
-                audio_duration_ms = 0
+                duration_str = info.get('duration')
+                if duration_str is None:
+                    print(f"  ⚠️ No duration metadata for: {source_path}")
+                    audio_duration_ms = None
+                else:
+                    audio_duration_ms = int(float(duration_str) * 1000)
+            except Exception as e:
+                print(f"  ⚠️ Failed to get duration for {source_path}: {e}")
+                audio_duration_ms = None
 
             # Determine destination directory
             if marker_type == 'music':
@@ -831,11 +800,12 @@ class AssemblyService:
             print(f"  ✓ {marker_type.upper()}/{asset_file}")
 
             # Generate individual metadata JSON
+            # Use 0 if duration couldn't be determined (already logged above)
             metadata = {
                 "file": asset_file,
                 "type": marker_type,
                 "timestamp_ms": time_ms,
-                "duration_ms": audio_duration_ms,
+                "duration_ms": audio_duration_ms if audio_duration_ms is not None else 0,
                 "title": title,
                 "categories": categories,
                 "notes": notes,

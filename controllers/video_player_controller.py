@@ -101,6 +101,31 @@ class VideoPlayerController:
         # Get video properties
         self.fps = self.video_capture.get(cv2.CAP_PROP_FPS)
         self.total_frames = int(self.video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        # Validate fps before calculating duration
+        if self.fps <= 0:
+            messagebox.showerror(
+                "Invalid Video",
+                f"Video has invalid frame rate ({self.fps} fps).\n\n"
+                f"The file may be corrupted or in an unsupported format."
+            )
+            print(f"⚠️ Invalid fps ({self.fps}) for video: {filepath}")
+            self.video_capture.release()
+            self.video_capture = None
+            return None
+
+        # Validate total_frames
+        if self.total_frames <= 0:
+            messagebox.showerror(
+                "Invalid Video",
+                f"Video has no frames ({self.total_frames} frames).\n\n"
+                f"The file may be corrupted or empty."
+            )
+            print(f"⚠️ Invalid frame count ({self.total_frames}) for video: {filepath}")
+            self.video_capture.release()
+            self.video_capture = None
+            return None
+
         self.duration_ms = int((self.total_frames / self.fps) * 1000)
         self.video_path = filepath  # Store video path
 

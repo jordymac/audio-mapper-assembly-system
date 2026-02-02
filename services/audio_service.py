@@ -15,6 +15,7 @@ from tkinter import messagebox
 import tkinter as tk
 from config.color_scheme import COLORS, create_colored_button
 from tkinter import ttk
+from core.marker_utils import get_marker_attr
 
 # Import ElevenLabs API functions
 try:
@@ -212,8 +213,8 @@ class AudioGenerationService:
             return
 
         marker = self.gui.markers[marker_index]
-        marker_type = marker['type']
-        prompt_data = marker.get('prompt_data', {})
+        marker_type = get_marker_attr(marker, 'type', 'sfx')
+        prompt_data = get_marker_attr(marker, 'prompt_data', {})
 
         # Store old state for undo
         old_marker_state = marker.copy()
@@ -563,7 +564,7 @@ class AudioGenerationService:
         marker_type = selected_type.get()
         markers_to_generate = [
             (i, marker) for i, marker in enumerate(self.gui.markers)
-            if marker['type'] == marker_type
+            if get_marker_attr(marker, 'type') == marker_type
         ]
 
         if not markers_to_generate:
@@ -616,8 +617,8 @@ class AudioGenerationService:
 
             # Get next marker
             marker_index, marker = markers_list[current_idx]
-            marker_name = marker.get('name', '(unnamed)')
-            marker_type = marker['type']
+            marker_name = get_marker_attr(marker, 'name', '(unnamed)')
+            marker_type = get_marker_attr(marker, 'type', 'sfx')
 
             # Update progress display
             progress.update_progress(current_idx, marker_name, marker_type)
@@ -656,8 +657,8 @@ class AudioGenerationService:
             return
 
         marker = self.gui.markers[marker_index]
-        marker_type = marker['type']
-        prompt_data = marker.get('prompt_data', {})
+        marker_type = get_marker_attr(marker, 'type', 'sfx')
+        prompt_data = get_marker_attr(marker, 'prompt_data', {})
         old_marker_state = marker.copy()
 
         # Set status to generating
@@ -879,9 +880,9 @@ class AudioGenerationService:
             # Overlay each marker's audio
             print(f"Assembling {len(markers_with_audio)} audio file(s)...")
             for marker, asset_file in markers_with_audio:
-                marker_type = marker['type']
-                time_ms = marker['time_ms']
-                marker_name = marker.get('name', '(unnamed)')
+                marker_type = get_marker_attr(marker, 'type', 'sfx')
+                time_ms = get_marker_attr(marker, 'time_ms', 0)
+                marker_name = get_marker_attr(marker, 'name', '(unnamed)')
 
                 # Find audio file
                 possible_paths = [
