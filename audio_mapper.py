@@ -159,6 +159,9 @@ class AudioMapperGUI:
         # Initialize assembly playback service (for synchronized audio)
         self.assembly_playback = AssemblyPlaybackService(video_player=self.video_player)
 
+        # Wire up playback error callback
+        self.assembly_playback.on_playback_error = self._show_playback_error
+
         # Initialize marker manager
         self.marker_manager = MarkerManager(
             marker_repository=self.marker_repository,
@@ -1021,6 +1024,20 @@ class AudioMapperGUI:
             print(f"❌ Error in toggle_playback: {e}")
             import traceback
             traceback.print_exc()
+
+    def _show_playback_error(self, marker_name: str, error_msg: str):
+        """
+        Show error dialog for playback issues (missing audio, etc.)
+
+        Args:
+            marker_name: Name of the marker with the error
+            error_msg: Description of the error
+        """
+        messagebox.showerror(
+            "Playback Error",
+            f"Error playing marker: {marker_name}\n\n{error_msg}\n\n"
+            f"Generate the audio first using the 🔄 button on the marker."
+        )
 
     def step_time(self, delta_ms):
         """
