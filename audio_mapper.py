@@ -1871,6 +1871,28 @@ class AudioMapperGUI:
 
 def main():
     """Launch the application"""
+    # Validate API configuration before starting GUI
+    from services.elevenlabs_api import validate_api_key
+
+    is_valid, error_type, error_message = validate_api_key()
+
+    if not is_valid:
+        # Show error dialog using tkinter (before creating main window)
+        import tkinter as tk
+        from tkinter import messagebox
+
+        # Create hidden root for messagebox
+        root = tk.Tk()
+        root.withdraw()
+
+        messagebox.showerror(
+            "Configuration Error",
+            error_message
+        )
+        root.destroy()
+        return  # Exit without starting app
+
+    # Normal startup
     root = tk.Tk()
     app = AudioMapperGUI(root)
     root.mainloop()
