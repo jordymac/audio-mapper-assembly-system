@@ -1878,8 +1878,7 @@ def main():
 
     if not is_valid:
         # Show error dialog using tkinter (before creating main window)
-        import tkinter as tk
-        from tkinter import messagebox
+        # Uses module-level imports: tk from line 7, messagebox from line 8
 
         # Create hidden root for messagebox
         root = tk.Tk()
