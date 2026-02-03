@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: UI State & Visual Bugs** - Fix waveform display and marker selection state issues
 - [x] **Phase 2: Playback & Audio Issues** - Fix marker triggering and missing audio handling
 - [x] **Phase 3: Data Handling Failures** - Surface silent duration and type confusion errors
-- [x] **Phase 4: Security Hygiene** - Validate environment setup, paths, and API inputs
+- [ ] **Phase 4: Security Hygiene** - Validate environment setup, paths, and API inputs
 
 ## Phase Details
 
@@ -71,11 +71,12 @@ Plans:
   2. User attempts file operation outside allowed directories and operation is blocked with error
   3. User enters excessively long prompt and sees validation error before API call
   4. File path traversal attempts are detected and rejected
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
 - [x] 04-01-PLAN.md — Environment validation with clear error messages (SEC-01)
 - [x] 04-02-PLAN.md — Path traversal protection and prompt length validation (SEC-02, SEC-03)
+- [ ] 04-03-PLAN.md — (gap closure) Fix tkinter import shadowing in main()
 
 ## Progress
 
@@ -87,7 +88,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. UI State & Visual Bugs | 2/2 | ✓ Complete | 2026-01-31 |
 | 2. Playback & Audio Issues | 1/1 | ✓ Complete | 2026-02-02 |
 | 3. Data Handling Failures | 1/1 | ✓ Complete | 2026-02-02 |
-| 4. Security Hygiene | 2/2 | ✓ Complete | 2026-02-02 |
+| 4. Security Hygiene | 2/3 | In Progress | - |
 
 ---
-*Last updated: 2026-02-02*
+*Last updated: 2026-02-03*
