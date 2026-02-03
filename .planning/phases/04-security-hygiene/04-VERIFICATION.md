@@ -1,16 +1,46 @@
 ---
 phase: 04-security-hygiene
-verified: 2026-02-02T08:46:57Z
+verified: 2026-02-03T06:15:00Z
 status: passed
-score: 8/8 must-haves verified
+score: 9/9 must-haves verified
+re_verification:
+  previous_status: gaps_found
+  previous_score: 8/8 (but UAT revealed hidden gap)
+  gaps_closed:
+    - "Starting app without .env.local shows error dialog instead of UnboundLocalError crash"
+  gaps_remaining: []
+  regressions: []
 ---
 
-# Phase 4: Security Hygiene Verification Report
+# Phase 4: Security Hygiene Verification Report (Re-verification)
 
 **Phase Goal:** Environment and inputs are validated with helpful error messages
-**Verified:** 2026-02-02T08:46:57Z
+**Verified:** 2026-02-03T06:15:00Z
 **Status:** PASSED
-**Re-verification:** No — initial verification
+**Re-verification:** Yes - after gap closure (04-03)
+
+## Gap Closure Verification
+
+### Previous Gap (from UAT test)
+
+**Issue:** Starting app without .env.local crashed with `UnboundLocalError: cannot access local variable 'tk'` instead of showing error dialog.
+
+**Root Cause:** Redundant local tkinter imports inside `main()` at lines 1881-1882 shadowed module-level imports for entire function scope due to Python scoping rules.
+
+**Fix Applied:** Commit `95f51b7` removed the redundant local imports:
+- Removed: `import tkinter as tk` (was line 1881)
+- Removed: `from tkinter import messagebox` (was line 1882)
+
+### Verification of Fix
+
+| Check | Status | Evidence |
+|-------|--------|----------|
+| No local tkinter imports in main() | VERIFIED | `grep -n "import tkinter" audio_mapper.py` returns only line 7 |
+| Module-level import at line 7 | VERIFIED | `import tkinter as tk` at file top |
+| Module-level messagebox at line 8 | VERIFIED | `from tkinter import ttk, filedialog, messagebox, simpledialog` |
+| main() uses module-level tk | VERIFIED | Line 1884: `root = tk.Tk()` uses module import |
+| main() uses module-level messagebox | VERIFIED | Line 1887: `messagebox.showerror(...)` uses module import |
+| Python import succeeds | VERIFIED | `python -c "import audio_mapper"` exits without error |
 
 ## Goal Achievement
 
@@ -18,67 +48,65 @@ score: 8/8 must-haves verified
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | User starts app without .env.local and sees clear error dialog with setup instructions | ✓ VERIFIED | validate_api_key() checks Path('.env.local').exists(), audio_mapper.py main() shows messagebox with detailed setup instructions |
-| 2 | User starts app with empty API key and sees clear error dialog | ✓ VERIFIED | validate_api_key() checks if API_KEY is None or empty, returns detailed error with setup instructions |
-| 3 | Error message includes exact file path and format needed | ✓ VERIFIED | Error messages include "Create a file named '.env.local'" and "Add this line to your .env.local file: ELEVENLABS_API_KEY=..." |
-| 4 | App does not crash with cryptic ValueError at import time | ✓ VERIFIED | API_KEY initialization is permissive (no raise), client initialization is lazy via get_client() |
-| 5 | User attempts file operation outside allowed directories and sees error | ✓ VERIFIED | file_handler.py uses validate_import_path/validate_export_path before operations, PathValidationError raised with clear message |
-| 6 | User enters excessively long prompt and sees validation error before API call | ✓ VERIFIED | All generate_* functions validate prompts first, return error dict without calling API |
-| 7 | Path traversal attempts (../) are detected and rejected | ✓ VERIFIED | is_safe_path() checks `if ".." in filepath`, validate_import_path() raises PathValidationError for traversal patterns |
-| 8 | API prompts are validated for reasonable length limits | ✓ VERIFIED | PROMPT_LIMITS defines type-specific limits (SFX: 1000, Voice: 5000, Music: 200), validate_prompt_length() enforces them |
+| 1 | User starts app without .env.local and sees clear error dialog with setup instructions | VERIFIED | validate_api_key() at line 29 checks Path('.env.local').exists(), main() at line 1879-1892 shows messagebox with setup instructions. Fix confirmed: no local imports shadow module-level. |
+| 2 | User starts app with empty API key and sees clear error dialog | VERIFIED | validate_api_key() at line 51 checks if API_KEY is None or empty, returns detailed error |
+| 3 | Error message includes exact file path and format needed | VERIFIED | Error messages include "Create a file named '.env.local'" and "ELEVENLABS_API_KEY=your_api_key_here" |
+| 4 | App does not crash with cryptic error at startup | VERIFIED | API_KEY initialization is permissive (no raise), validation deferred to startup, tkinter import fix prevents UnboundLocalError |
+| 5 | User attempts file operation outside allowed directories and sees error | VERIFIED | file_handler.py line 10 imports validators, line 41/103 validate paths, PathValidationError raised with clear message |
+| 6 | User enters excessively long prompt and sees validation error before API call | VERIFIED | All generate_* functions validate prompts first (lines 100, 186, 335 in elevenlabs_api.py), return error dict without calling API |
+| 7 | Path traversal attempts (../) are detected and rejected | VERIFIED | is_safe_path() at path_validator.py line 57 checks `if ".." in filepath`, raises PathValidationError |
+| 8 | API prompts are validated for reasonable length limits | VERIFIED | PROMPT_LIMITS at prompt_validator.py lines 16-42 defines type-specific limits (SFX: 1000, Voice: 5000, Music: 200) |
+| 9 | No UnboundLocalError when starting without .env.local | VERIFIED | Gap closure fix removes local tkinter imports, module-level imports used throughout main() |
 
-**Score:** 8/8 truths verified
+**Score:** 9/9 truths verified
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `services/elevenlabs_api.py` | Deferred API key validation with clear error messages | ✓ VERIFIED | Lines 28-60: validate_api_key() returns (is_valid, error_type, error_message). Lines 63-77: get_client() lazy initialization. No stub patterns found. |
-| `audio_mapper.py` | Startup validation call before GUI initialization | ✓ VERIFIED | Lines 1875-1893: main() imports validate_api_key, calls it, shows error dialog if invalid, returns without starting app. Uses validated result properly. |
-| `utils/path_validator.py` | Path validation utilities | ✓ VERIFIED | 153 lines. Exports: PathValidationError (line 12), is_safe_path (line 34), validate_path (line 82), validate_import_path (line 111), validate_export_path (line 138). No stub patterns. |
-| `utils/prompt_validator.py` | Prompt validation utilities | ✓ VERIFIED | 157 lines. Exports: PromptValidationError (line 10), validate_prompt_length (line 45), validate_prompt (line 87), type-specific validators. PROMPT_LIMITS defined with all types. No stub patterns. |
-| `controllers/file_handler.py` | File operations with path validation | ✓ VERIFIED | Line 10: imports validation functions. Line 41: import_from_json validates with validate_import_path. Line 103: export_to_json validates with validate_export_path. Uses validated_path in operations. |
-| `services/elevenlabs_api.py` | API calls with prompt validation | ✓ VERIFIED | Line 11: imports prompt validators. Line 100: generate_sfx validates description. Line 186: generate_voice validates text and profile. Line 335: generate_music validates styles. All use validated values in API calls. |
+| `services/elevenlabs_api.py` | Deferred API key validation with clear error messages | VERIFIED | Lines 29-60: validate_api_key() returns (is_valid, error_type, error_message). Lines 63-78: get_client() lazy initialization. |
+| `audio_mapper.py` | Startup validation call before GUI initialization | VERIFIED | Lines 1872-1897: main() imports validate_api_key, calls it, shows error dialog if invalid using MODULE-LEVEL tk and messagebox imports (no local shadows). |
+| `utils/path_validator.py` | Path validation utilities | VERIFIED | 153 lines. Exports: PathValidationError, is_safe_path, validate_path, validate_import_path, validate_export_path. No stub patterns. |
+| `utils/prompt_validator.py` | Prompt validation utilities | VERIFIED | 157 lines. Exports: PromptValidationError, validate_prompt_length, validate_prompt, type-specific validators. PROMPT_LIMITS defined. |
+| `controllers/file_handler.py` | File operations with path validation | VERIFIED | Line 10: imports validation functions. Line 41: import_from_json validates. Line 103: export_to_json validates. |
 
 ### Key Link Verification
 
 | From | To | Via | Status | Details |
-|------|----|----|--------|---------|
-| audio_mapper.py | services/elevenlabs_api.py | startup validation call | ✓ WIRED | Line 1875: imports validate_api_key. Line 1877: calls and checks result. Line 1879-1893: handles invalid case with error dialog. Line 1896: proceeds to normal startup only if valid. |
-| controllers/file_handler.py | utils/path_validator.py | import and validation call | ✓ WIRED | Line 10: imports validate_import_path, validate_export_path, PathValidationError. Line 41: import_from_json calls validate_import_path(filepath). Line 103: export_to_json calls validate_export_path(filepath). Both use validated_path. |
-| services/elevenlabs_api.py | utils/prompt_validator.py | import and validation call | ✓ WIRED | Lines 11-16: imports all validation functions. Line 100: generate_sfx calls validate_sfx_prompt(description). Line 186: generate_voice calls validate_voice_prompt(text, voice_profile). Line 335: generate_music calls validate_music_styles. All catch PromptValidationError and return error dict. |
-| generate_sfx | get_client() | lazy client initialization | ✓ WIRED | Line 122: calls get_client().text_to_sound_effects.convert(). Uses validated_description (line 123), not original description. |
-| generate_voice | get_client() | lazy client initialization | ✓ WIRED | Line 214: calls get_client().text_to_voice.design(). Line 258: calls get_client().text_to_speech.convert(). Uses validated_text and validated_profile (lines 216-217), not originals. |
-| generate_music | get_client() | lazy client initialization | ✓ WIRED | Line 394: calls get_client().music.compose(). Uses composition_plan built from validated_positive and validated_negative (lines 356-357), not originals. |
+|------|----|-----|--------|---------|
+| audio_mapper.py main() | tk module import | module-level import line 7 | VERIFIED | `root = tk.Tk()` at line 1884 and 1895 uses module import, no local shadow |
+| audio_mapper.py main() | messagebox import | module-level import line 8 | VERIFIED | `messagebox.showerror(...)` at line 1887 uses module import, no local shadow |
+| audio_mapper.py | elevenlabs_api.py | startup validation call | VERIFIED | Line 1875: imports validate_api_key. Line 1877: calls and checks result. |
+| controllers/file_handler.py | utils/path_validator.py | import and validation | VERIFIED | Line 10: imports validators. Line 41/103: calls validate functions. |
+| services/elevenlabs_api.py | utils/prompt_validator.py | import and validation | VERIFIED | Lines 13-15: imports validators. Lines 100, 186, 335: validates prompts before API calls. |
 
 ### Requirements Coverage
 
 | Requirement | Status | Evidence |
 |-------------|--------|----------|
-| SEC-01: Missing .env.local gives clear error message with setup instructions | ✓ SATISFIED | validate_api_key() checks file existence and API key presence. Error messages include "Configuration file not found: .env.local" with numbered setup steps and API key URL. |
-| SEC-02: File paths validated against allowed directories (prevent traversal) | ✓ SATISFIED | path_validator.py implements is_safe_path() checking for ".." patterns and validating against allowed directories. Export operations restricted to project dirs (output, template_maps, generated_audio). Import operations block explicit traversal patterns. |
-| SEC-03: ElevenLabs prompts validated for length limits and basic sanitization | ✓ SATISFIED | PROMPT_LIMITS defines type-specific character limits. validate_prompt_length() enforces limits with clear error messages including current length and max allowed. All API functions validate before calling API. |
+| SEC-01: Missing .env.local gives clear error message | SATISFIED | validate_api_key() checks file existence. Error dialog shows numbered setup steps. Gap closure ensures dialog displays without crash. |
+| SEC-02: File paths validated against allowed directories | SATISFIED | path_validator.py implements traversal detection and directory restrictions. |
+| SEC-03: ElevenLabs prompts validated for length limits | SATISFIED | PROMPT_LIMITS defines type-specific limits. All API functions validate before calling. |
 
 ### Anti-Patterns Found
 
 **None detected.**
 
-Scanned files:
-- services/elevenlabs_api.py: No TODO/FIXME/placeholder patterns. No empty returns. No console.log-only handlers.
-- audio_mapper.py: No TODO/FIXME in validation section. Proper error handling with dialog.
-- utils/path_validator.py: No stub patterns. Complete implementation with all validation logic.
-- utils/prompt_validator.py: No stub patterns. Complete implementation with documented limits.
-- controllers/file_handler.py: No stub patterns in validation sections. Proper error handling.
+Scanned files for TODO/FIXME/placeholder patterns:
+- services/elevenlabs_api.py: No patterns found
+- utils/path_validator.py: No patterns found  
+- utils/prompt_validator.py: No patterns found
+- audio_mapper.py (validation section): No patterns found
 
 ### Human Verification Required
 
-None. All truths can be verified through code inspection:
-- Environment validation logic is complete and testable via code paths
-- Path validation logic is complete with clear ".." pattern detection
-- Prompt validation logic is complete with documented limits
-- All wiring is traceable through imports and function calls
+None. All truths verified through code inspection:
+- Gap closure fix confirmed via grep showing no local tkinter imports in main()
+- Import statement succeeds without error
+- All wiring traceable through imports and function calls
 
 ---
 
-_Verified: 2026-02-02T08:46:57Z_
+_Verified: 2026-02-03T06:15:00Z_
 _Verifier: Claude (gsd-verifier)_
+_Re-verification: Gap closure 04-03 (tkinter import shadowing fix)_
