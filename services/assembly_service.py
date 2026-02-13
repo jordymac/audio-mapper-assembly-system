@@ -939,6 +939,260 @@ class AssemblyService:
             "template_file": f"{template_id}_template.json"
         }
 
+    def export_bwf(
+        self,
+        markers: List,
+        template_id: str,
+        template_name: str = "",
+        video_reference: str = "",
+        output_dir: str = "output"
+    ) -> Dict[str, any]:
+        """
+        Export per-track BWF files with embedded bext + iXML metadata.
+
+        Creates:
+        - MUSIC/, SFX/, VOICE/ subdirectories with BWF .wav files
+        - Individual metadata JSON per audio file (with full version history)
+        - Template JSON manifest
+
+        No multi-channel assembly is performed.
+
+        Args:
+            markers: List of all markers
+            template_id: Template identifier (e.g., "DM01")
+            template_name: Template name (e.g., "Indoor Routine")
+            video_reference: Original video filename
+            output_dir: Base output directory
+
+        Returns:
+            Dict with export summary
+        """
+        import json
+        from datetime import datetime
+        from pydub.utils import mediainfo
+        from utils.bwf_writer import BWFMetadata, write_bwf, BWF_SAMPLE_RATE
+
+        # Create output directory structure
+        output_path = Path(output_dir) / f"{template_id}_{template_name.replace(' ', '_')}"
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        music_dir = output_path / "MUSIC"
+        sfx_dir = output_path / "SFX"
+        voice_dir = output_path / "VOICE"
+        music_dir.mkdir(exist_ok=True)
+        sfx_dir.mkdir(exist_ok=True)
+        voice_dir.mkdir(exist_ok=True)
+
+        print(f"Exporting BWF files to: {output_path}")
+
+        exported_files = []
+        markers_included = []
+
+        for marker in markers:
+            # Extract marker data (works with both dict and Marker objects)
+            if isinstance(marker, dict):
+                marker_type = marker.get('type', '')
+                time_ms = marker.get('time_ms', 0)
+                title = marker.get('title', marker.get('name', ''))
+                categories = marker.get('categories', {})
+                notes = marker.get('notes', '')
+                prompt_data = marker.get('prompt_data', {})
+                used_in_templates = marker.get('used_in_templates', [])
+                if template_id not in used_in_templates:
+                    used_in_templates.append(template_id)
+
+                versions = marker.get('versions', [])
+                current_version_num = marker.get('current_version', 1)
+                if versions:
+                    current_version_data = next(
+                        (v for v in versions if v.get('version') == current_version_num),
+                        versions[-1] if versions else {}
+                    )
+                    asset_file = current_version_data.get('asset_file', '')
+                else:
+                    asset_file = marker.get('asset_file', '')
+            else:
+                marker_type = marker.type
+                time_ms = marker.time_ms
+                title = marker.title or marker.name
+                categories = marker.categories
+                notes = marker.notes
+                prompt_data = marker.prompt_data
+                used_in_templates = marker.used_in_templates.copy()
+                if template_id not in used_in_templates:
+                    used_in_templates.append(template_id)
+
+                versions = marker.versions
+                current_version_num = marker.current_version
+                if marker.versions:
+                    current_version_data = next(
+                        (v for v in marker.versions if v.version == marker.current_version),
+                        marker.versions[-1] if marker.versions else None
+                    )
+                    asset_file = current_version_data.asset_file if current_version_data else marker.asset_file
+                else:
+                    asset_file = marker.asset_file
+
+            # Skip markers without generated audio
+            if not asset_file:
+                print(f"  ⚠ Skipping marker at {time_ms}ms - no asset file")
+                continue
+
+            # Find source audio file
+            print(f"  Looking for audio file: {asset_file} (type: {marker_type})")
+            source_path = self._find_audio_file(asset_file, marker_type)
+            if not source_path:
+                print(f"  ⚠ Warning: Audio file not found for {asset_file}")
+                continue
+            print(f"    Found at: {source_path}")
+
+            # Load audio
+            try:
+                audio = AudioSegment.from_file(str(source_path))
+            except Exception as e:
+                print(f"  ⚠ Failed to load audio {source_path}: {e}")
+                continue
+
+            audio_duration_ms = len(audio)
+
+            # Set channels: music→stereo, sfx/voice→mono
+            if marker_type == 'music':
+                dest_dir = music_dir
+                if audio.channels == 1:
+                    audio = audio.set_channels(2)
+            elif marker_type == 'sfx':
+                dest_dir = sfx_dir
+                if audio.channels > 1:
+                    audio = audio.set_channels(1)
+            elif marker_type == 'voice':
+                dest_dir = voice_dir
+                if audio.channels > 1:
+                    audio = audio.set_channels(1)
+            else:
+                continue
+
+            # Build BWF filename from asset_file stem but with .wav extension
+            stem = Path(asset_file).stem
+            bwf_filename = f"{stem}.wav"
+            bwf_path = str(dest_dir / bwf_filename)
+
+            # Build BWFMetadata
+            time_reference = int((time_ms / 1000.0) * BWF_SAMPLE_RATE)
+            bwf_meta = BWFMetadata(
+                description=title or stem,
+                originator_reference=template_id,
+                time_reference=time_reference,
+                project_name=template_name,
+                scene=template_id,
+                take=current_version_num,
+                note=notes,
+                track_name=f"{marker_type.upper()}/{stem}",
+                marker_type=marker_type,
+                template_id=template_id,
+                timestamp_ms=time_ms,
+                duration_ms=audio_duration_ms,
+                asset_id=self._get_asset_id(marker),
+                sample_rate=BWF_SAMPLE_RATE,
+            )
+
+            # Write BWF file
+            success = write_bwf(audio, bwf_path, bwf_meta)
+            if not success:
+                print(f"  ⚠ BWF write failed for {bwf_filename}")
+                continue
+
+            print(f"  ✓ {marker_type.upper()}/{bwf_filename}")
+
+            # Build version history for JSON sidecar
+            version_history = self._build_version_history(versions)
+
+            # Write JSON sidecar
+            sidecar = {
+                "file": bwf_filename,
+                "type": marker_type,
+                "timestamp_ms": time_ms,
+                "duration_ms": audio_duration_ms,
+                "title": title,
+                "categories": categories,
+                "notes": notes,
+                "usedInTemplates": [
+                    {"template_id": tid, "timestamp_ms": time_ms}
+                    for tid in used_in_templates
+                ],
+                "current_version": current_version_num,
+                "version_history": version_history,
+            }
+
+            metadata_file = dest_dir / f"{stem}_metadata.json"
+            with open(metadata_file, 'w') as f:
+                json.dump(sidecar, f, indent=2)
+
+            exported_files.append(str((dest_dir / bwf_filename).relative_to(output_path)))
+            markers_included.append(bwf_filename)
+
+        # Write template JSON manifest
+        template_data = {
+            "template_id": template_id,
+            "template_name": template_name,
+            "markers": [self._serialize_marker_for_export(m) for m in markers]
+        }
+        template_file = output_path / f"{template_id}_template.json"
+        with open(template_file, 'w') as f:
+            json.dump(template_data, f, indent=2)
+        print(f"  ✓ {template_id}_template.json")
+
+        print(f"\n✅ Export complete!")
+        print(f"  - {len(exported_files)} BWF audio files exported")
+        print(f"  - {len(exported_files)} metadata files created")
+        print(f"  - 1 template JSON")
+
+        return {
+            "output_dir": str(output_path),
+            "exported_files": exported_files,
+            "template_file": f"{template_id}_template.json"
+        }
+
+    @staticmethod
+    def _get_asset_id(marker) -> str:
+        """Extract asset_id from a marker (dict or object)."""
+        if isinstance(marker, dict):
+            versions = marker.get('versions', [])
+            current = marker.get('current_version', 1)
+            if versions:
+                v = next((v for v in versions if v.get('version') == current), None)
+                if v:
+                    return v.get('asset_id', '') or ''
+            return marker.get('asset_id', '') or ''
+        else:
+            if marker.versions:
+                v = next((v for v in marker.versions if v.version == marker.current_version), None)
+                if v:
+                    return v.asset_id or ''
+            return marker.asset_id or ''
+
+    @staticmethod
+    def _build_version_history(versions) -> list:
+        """Build version history list for JSON sidecar from versions (list of dicts or AudioVersion objects)."""
+        history = []
+        if not versions:
+            return history
+        for v in versions:
+            if isinstance(v, dict):
+                history.append({
+                    "version": v.get('version', 1),
+                    "prompt_data_snapshot": v.get('prompt_data_snapshot', {}),
+                    "asset_id": v.get('asset_id', ''),
+                    "created_at": v.get('created_at', ''),
+                })
+            else:
+                history.append({
+                    "version": v.version,
+                    "prompt_data_snapshot": v.prompt_data_snapshot.copy() if v.prompt_data_snapshot else {},
+                    "asset_id": v.asset_id or '',
+                    "created_at": v.created_at or '',
+                })
+        return history
+
     def _find_audio_file(self, asset_file: str, marker_type: str) -> Optional[Path]:
         """Find audio file in various possible locations"""
         possible_paths = [

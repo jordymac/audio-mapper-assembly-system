@@ -789,16 +789,15 @@ class ExportCenterWindow:
             progress_window.geometry("400x100")
             progress_label = tk.Label(
                 progress_window,
-                text="Exporting files and metadata...\nThis may take a moment.",
+                text="Exporting BWF files and metadata...\nThis may take a moment.",
                 pady=20
             )
             progress_label.pack()
             progress_window.update()
 
             # Call export service
-            result = self.assembly_service.export_with_metadata(
+            result = self.assembly_service.export_bwf(
                 markers=self.markers,
-                duration_ms=self.duration_ms,
                 template_id=self.template_id,
                 template_name=self.template_name,
                 video_reference=self.video_reference,
@@ -812,10 +811,8 @@ class ExportCenterWindow:
             message = f"✅ Export Complete!\n\n"
             message += f"Output: {result['output_dir']}\n\n"
             message += f"Created:\n"
-            message += f"  • {len(result['exported_files'])} audio files\n"
+            message += f"  • {len(result['exported_files'])} BWF audio files\n"
             message += f"  • {len(result['exported_files'])} metadata files\n"
-            message += f"  • 1 assembled multi-channel WAV\n"
-            message += f"  • 1 assembled metadata JSON\n"
             message += f"  • 1 template JSON"
 
             messagebox.showinfo("Export Complete", message)
